@@ -7,10 +7,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import precision_recall_fscore_support
-from sklearn.neighbors import NearestCentroid, NearestNeighbors
 from sklearn.metrics import adjusted_rand_score, classification_report
-import rpy2.robjects as robjects
-from scipy.optimize import linprog
 # LightGBM
 from lightgbm import LGBMClassifier
 # xgboost
@@ -23,13 +20,11 @@ def get_data(data_name, with_marker=False, norm=False, scale_factor=1e4):
     """
     For specific data_name, get the corresponding data.
 
-    ----------
     :param data_name: the dataset you want to get
     :param with_marker: whether to return marker genes
     :param norm: whether to normalize features(using the normalization in Seurat)
     :param scale_factor: size factor, default 1e4
-    :return:if with_marker=False, features(row:cell, col:gene, dataframe) and labels(dataframe) of raw data.
-    if with_marker=True, features(row:cell, col:gene, dataframe), labels(dataframe) and marker genes(array) of raw data
+    :return: If with_marker=True, features(row:cell, col:gene, dataframe), labels(dataframe) and marker genes(array)
     """
     if data_name[:4] == 'PBMC':
         os.chdir('/home/tdeng/SingleCell/data/PBMC/integrated data')
@@ -84,7 +79,6 @@ def filter_const_genes(X):
     """
     Remove constant genes.
 
-    ----------
     :param X: Count matrix in  dataframe format (row:cell, col:gene)
     :return: Filtered count matrix
     """
@@ -95,7 +89,6 @@ def pancreas_filter_and_save_data():
     """
     Read separated data, remove cells which do not have a clear cell type and save filtered data.
 
-    ----------
     :return: None
     """
     os.chdir('/home/tdeng/SingleCell/data/pancreas/separated data')
@@ -119,6 +112,7 @@ def pancreas_filter_and_save_data():
 def get_gene_names(columns):
     """
     Get gene names array from features (dataframe).
+
     :param columns: dataframe.columns
     :return: an array contains gene names
     """
