@@ -4,73 +4,13 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
-from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import RandomForestClassifier
+
 # LightGBM
 from lightgbm import LGBMClassifier
 # xgboost
 from xgboost import XGBClassifier
 from loess.loess_1d import loess_1d
 import os
-
-
-def get_data(data_name, with_marker=False, norm=False, scale_factor=1e4):
-    """
-    For specific data_name, get the corresponding data.
-
-    :param data_name: the dataset you want to get
-    :param with_marker: whether to return marker genes
-    :param norm: whether to normalize features(using the normalization in Seurat)
-    :param scale_factor: size factor, default 1e4
-    :return: If with_marker=True, features(row:cell, col:gene, dataframe), labels(dataframe) and marker genes(array)
-    """
-    if data_name[:4] == 'PBMC':
-        os.chdir('/home/tdeng/SingleCell/data/PBMC/integrated data')
-        if data_name == 'PBMC':
-            data = pd.read_hdf('PBMC_AllCells_withLables.h5', key='AllCells')
-            features, labels = data.iloc[:, :-1], data.iloc[:, -1]
-        elif 0 < int(data_name[4:]) < 100:
-            features = pd.read_csv('raw_features_sample' + data_name[4:] + '.csv', index_col=0)
-            labels = pd.read_csv('raw_labels_sample' + data_name[4:] + '.csv', usecols=[1])
-        else:
-            print("parameter 'data_name' is wrong!")
-            return None
-
-        if norm:
-            features = np.log1p(features / features.sum(1).values.reshape(features.shape[0], 1) * scale_factor)
-        if with_marker:
-            part1 = np.squeeze(
-                pd.read_csv('/home/tdeng/SingleCell/data/PBMC/hsPBMC_markers_10x.txt', usecols=[0]).values)
-            part2 = np.squeeze(
-                pd.read_csv('/home/tdeng/SingleCell/data/PBMC/blood_norm_marker.txt', usecols=[1]).values)
-            markers = np.union1d(part1, part2)
-            return features, labels, markers
-        return features, labels
-    elif data_name in ['muraro', 'segerstolpe', 'xin']:
-        os.chdir('/home/tdeng/SingleCell/data/pancreas/separated data')
-        features = pd.read_csv(data_name.capitalize() + '_pancreas_filtered.csv', index_col=0)
-        labels = pd.read_csv(data_name.capitalize() + '_trueID_filtered.csv', usecols=[1])
-        if norm:
-            features = np.log1p(features / features.sum(1).values.reshape(features.shape[0], 1) * scale_factor)
-        if with_marker:
-            markers = np.squeeze(pd.read_csv('/home/tdeng/SingleCell/data/pancreas/pancreasMarkerGenes.csv',
-                                             usecols=[0]).values)
-            return features, labels, markers
-        return features, labels
-    elif data_name == 'all_pancreas':
-        os.chdir('/home/tdeng/SingleCell/data/pancreas/integrated data')
-        features = pd.read_csv('features.csv', index_col=0)
-        labels = pd.read_csv('labels.csv', usecols=[1])
-        if norm:
-            features = np.log1p(features / features.sum(1).values.reshape(features.shape[0], 1) * scale_factor)
-        if with_marker:
-            markers = np.squeeze(pd.read_csv('/home/tdeng/SingleCell/data/pancreas/pancreasMarkerGenes.csv',
-                                             usecols=[0]).values)
-            return features, labels, markers
-        return features, labels
-    else:
-        print("parameter 'data_name' is wrong!")
-        return None
 
 
 def filter_const_genes(X):
@@ -80,7 +20,54 @@ def filter_const_genes(X):
     :param X: Count matrix in  dataframe format (row:cell, col:gene)
     :return: Filtered count matrix
     """
-    return X.loc[:, X.mean(axis=0) != 0]
+    mask = X.mean(axis=0) != 0
+    print("{} genes have been removed.".format(X.shape[1] - mask.sum()))
+    return X.loc[:, mask]
+
+
+def load_data(data_name, scale_factor=1e4):
+    """
+    For specific data_name, get the corresponding raw data. Remove constant genes (=0) and normalize it
+    using the method in Seurat.
+
+    :param data_name: the dataset name you want to get
+    :param scale_factor: size factor, default 1e4
+    :return: raw_features, norm_features, labels, markers
+    """
+    if data_name[:4] == 'PBMC':
+        os.chdir('/home/tdeng/SingleCell/data/PBMC/integrated data')
+        if len(data_name) == 4:
+            data = pd.read_hdf('PBMC_AllCells_withLables.h5', key='AllCells')
+            raw_features, labels = data.iloc[:, :-1], data.iloc[:, -1]
+        elif len(data_name) > 4:
+            raw_features = pd.read_csv('raw_features_sample' + data_name[4:] + '.csv', index_col=0)
+            labels = pd.read_csv('raw_labels_sample' + data_name[4:] + '.csv', usecols=[1])
+        else:
+            print("parameter 'data_name' is wrong!")
+            return None
+        os.chdir('../')
+        part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.object, delimiter=',')
+        part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.object, delimiter=',')
+        markers = np.union1d(part1, part2)
+    elif data_name in ['muraro', 'segerstolpe', 'xin']:
+        os.chdir('/home/tdeng/SingleCell/data/pancreas/separated data')
+        raw_features = pd.read_csv(data_name.capitalize() + '_pancreas_filtered.csv', index_col=0)
+        labels = pd.read_csv(data_name.capitalize() + '_trueID_filtered.csv', usecols=[1])
+        os.chdir('../')
+        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.object, delimiter=',')
+    elif data_name == 'all_pancreas':
+        os.chdir('/home/tdeng/SingleCell/data/pancreas/integrated data')
+        raw_features = pd.read_csv('features.csv', index_col=0)
+        labels = pd.read_csv('labels.csv', usecols=[1])
+        os.chdir('../')
+        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.object, delimiter=',')
+    else:
+        print("parameter 'data_name' is wrong!")
+        return None
+    raw_features = filter_const_genes(raw_features)
+    norm_features = np.log1p(raw_features / raw_features.sum(1).values.reshape(raw_features.shape[0], 1) * scale_factor)
+    os.chdir("../..")
+    return raw_features, norm_features, labels, markers
 
 
 def pancreas_filter_and_save_data():
@@ -123,7 +110,17 @@ def get_gene_names(columns):
     return gene_names
 
 
-X, y = get_data('muraro')
-print(X.shape)
-X = filter_const_genes(X)
-print(X.shape)
+def save_filtered_data(X, y, all_genes, selected_genes):
+    print(os.getcwd())
+    os.chdir(r'scRNA-FeatureSelection/')
+    # clustering
+    mask = np.isin(all_genes, selected_genes)
+    X.loc[:, mask].to_csv('tempData/temp_X.csv')
+    y.index = X.index
+    y.to_csv('tempData/temp_y.csv')
+    # classification
+    X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, test_size=0.3, random_state=2021)
+    X_train.to_csv('tempData/temp_X_train.csv')
+    X_test.to_csv('tempData/temp_X_test.csv')
+    y_train.to_csv('tempData/temp_y_train.csv')
+    y_test.to_csv('tempData/temp_y_test.csv')
