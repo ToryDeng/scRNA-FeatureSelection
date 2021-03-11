@@ -6,8 +6,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import precision_recall_fscore_support
-from sklearn.metrics import adjusted_rand_score, classification_report
 # LightGBM
 from lightgbm import LGBMClassifier
 # xgboost
