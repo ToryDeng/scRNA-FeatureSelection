@@ -1,6 +1,6 @@
 # scRNA-FeatureSelection
 Several feature selection methods for scRNA-seq analysis using python and R
-# Program Structure
+## Program Structure
 utils-  # functions about data processing and several feature selection methods
   evaluate_result.py   # evaluat the result of specific feature selection method
   importance.py        # calculate importance of every gene and select the most important ones
