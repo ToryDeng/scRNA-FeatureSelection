@@ -3,13 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
 
-# LightGBM
-from lightgbm import LGBMClassifier
-# xgboost
-from xgboost import XGBClassifier
-from loess.loess_1d import loess_1d
 import os
 
 
@@ -20,9 +14,15 @@ def filter_const_genes(X):
     :param X: Count matrix in  dataframe format (row:cell, col:gene)
     :return: Filtered count matrix
     """
-    mask = X.mean(axis=0) != 0
+    mask = X.sum(axis=0) != 0
     print("{} genes have been removed.".format(X.shape[1] - mask.sum()))
     return X.loc[:, mask]
+
+
+def filter_const_cells(X, y):
+    mask = X.sum(axis=1) != 0
+    print("{} cells have been removed.".format(X.shape[0] - mask.sum()))
+    return X.loc[mask, :], y[mask.values]
 
 
 def load_data(data_name, scale_factor=1e4):
@@ -65,6 +65,7 @@ def load_data(data_name, scale_factor=1e4):
         print("parameter 'data_name' is wrong!")
         return None
     raw_features = filter_const_genes(raw_features)
+    raw_features, labels = filter_const_cells(X=raw_features, y=labels)
     norm_features = np.log1p(raw_features / raw_features.sum(1).values.reshape(raw_features.shape[0], 1) * scale_factor)
     os.chdir("../..")
     return raw_features, norm_features, labels, markers
@@ -111,16 +112,45 @@ def get_gene_names(columns):
 
 
 def save_filtered_data(X, y, all_genes, selected_genes):
-    print(os.getcwd())
-    os.chdir(r'scRNA-FeatureSelection/')
+    """
+    Save raw counts with only marker genes, labels and split data to training set and test set
+    for evaluation using clustering and classification method.
+
+    :param X: raw counts
+    :param y: labels
+    :param all_genes: all genes
+    :param selected_genes: selected genes
+    :return: None
+    """
     # clustering
     mask = np.isin(all_genes, selected_genes)
-    X.loc[:, mask].to_csv('tempData/temp_X.csv')
+    X.loc[:, mask].to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
     y.index = X.index
-    y.to_csv('tempData/temp_y.csv')
+    y.to_csv('scRNA-FeatureSelection/tempData/temp_y.csv')
     # classification
     X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, test_size=0.3, random_state=2021)
-    X_train.to_csv('tempData/temp_X_train.csv')
-    X_test.to_csv('tempData/temp_X_test.csv')
-    y_train.to_csv('tempData/temp_y_train.csv')
-    y_test.to_csv('tempData/temp_y_test.csv')
+    X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X_train.csv')
+    X_test.to_csv('scRNA-FeatureSelection/tempData/temp_X_test.csv')
+    y_train.to_csv('scRNA-FeatureSelection/tempData/temp_y_train.csv')
+    y_test.to_csv('scRNA-FeatureSelection/tempData/temp_y_test.csv')
+
+
+
+def delAll(path):
+    """
+    Recursively delete files in a temporary folder.
+
+    :param path: folder or file path
+    :return: None
+    """
+    if os.path.isdir(path):
+        files = os.listdir(path)
+        for file in files:
+            p = os.path.join(path, file)
+            if os.path.isdir(p):
+                # recursion
+                delAll(p)
+            else:
+                os.remove(p)
+    else:
+        os.remove(path)

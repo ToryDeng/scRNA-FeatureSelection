@@ -1,26 +1,7 @@
 import numpy as np
 from sklearn.metrics import adjusted_rand_score, classification_report
+from utils.utils import delAll
 import os
-
-
-def delAll(path):
-    """
-    Recursively delete files in a temporary folder.
-
-    :param path: folder or file path
-    :return: None
-    """
-    if os.path.isdir(path):
-        files = os.listdir(path)
-        for file in files:
-            p = os.path.join(path, file)
-            if os.path.isdir(p):
-                # recursion
-                delAll(p)
-            else:
-                os.remove(p)
-    else:
-        os.remove(path)
 
 
 def evaluate_method(trusted_features, selected_features, label_true, rank=True):
