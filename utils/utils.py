@@ -135,7 +135,6 @@ def save_filtered_data(X, y, all_genes, selected_genes):
     y_test.to_csv('scRNA-FeatureSelection/tempData/temp_y_test.csv')
 
 
-
 def delAll(path):
     """
     Recursively delete files in a temporary folder.
@@ -154,3 +153,19 @@ def delAll(path):
                 os.remove(p)
     else:
         os.remove(path)
+
+
+def PBMC_sample_to_csv(fraction):
+    """
+    Randomly sample some cells and save as csv file from PBMC dataset.
+
+    :param fraction: double, sampling rate
+    :return: None
+    """
+    path = '/home/tdeng/SingleCell/data/PBMC/integrated data'
+    data = pd.read_hdf(path + 'PBMC_AllCells_withLables.h5', key='AllCells')
+    samples = data.sample(frac=fraction, random_state=2020).reset_index(drop=True)
+    samples.columns.name = ''
+    samples.columns = pd.Series(samples.columns).str.split('\t', expand=True).iloc[:, 1].values
+    samples.iloc[:, :-1].to_csv(path + 'raw_features_sample' + str(int(fraction * 100)) + '.csv')
+    samples.iloc[:, -1].to_csv(path + 'raw_labels_sample' + str(int(fraction * 100)) + '.csv')

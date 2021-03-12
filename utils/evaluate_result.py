@@ -19,19 +19,25 @@ def evaluate_method(trusted_features, selected_features, label_true, rank=True):
         print('MRR:{:.5f}'.format(np.sum(1 / (rank + 1)) / rank.shape[0]))
     print('marker genes found:{}'.format(np.intersect1d(trusted_features, selected_features).shape[0]))
 
-    os.chdir(r'../TempData')
+    temp_path = 'scRNA-FeatureSelection/tempData/'
     # evaluate using ARI
     for clustering_method in ['seurat', 'sc3']:
-        label_pred = np.loadtxt('temp_' + clustering_method + '.csv', delimiter=',', skiprows=1, dtype=np.object)
+        label_pred = np.loadtxt(
+            ''.join([temp_path, 'temp_', clustering_method, '.csv']),
+            delimiter=',', skiprows=1, dtype=np.str)
         ari = adjusted_rand_score(np.squeeze(label_true), np.squeeze(label_pred))
         print("ari of {}: {:.5f}".format(clustering_method, ari))
     # evaluate using classification methods
-    label_test = np.loadtxt('temp_y_test.csv', delimiter=',', skiprows=1,dtype=np.object)[:, 1]
+    label_test = np.loadtxt(temp_path + 'temp_y_test.csv', delimiter=',', skiprows=1,dtype=np.object)[:, 1]
     for assign_method in ['scmap_cluster', 'scmap_cell', 'singlecellnet']:
-        label_pred = np.loadtxt('temp_' + assign_method + '.csv', delimiter=',', skiprows=1, dtype=np.object)
+        label_pred = np.loadtxt(
+            ''.join([temp_path, 'temp_', assign_method, '.csv']),
+            delimiter=',', skiprows=1, dtype=np.str)
         print("classification report of {}:\n".format(assign_method))
-        print(classification_report(np.squeeze(label_test), np.squeeze(label_pred)))
-#     delAll(r'/home/tdeng/SingleCell/FeatureSelection/R/TempData')
+        print(classification_report(np.squeeze(label_test), np.char.strip(label_pred, '"')))
+    delAll(temp_path)
     print('\n')
+
+
 
 
