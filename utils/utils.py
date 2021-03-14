@@ -1,7 +1,5 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 import os
@@ -77,22 +75,22 @@ def pancreas_filter_and_save_data():
 
     :return: None
     """
-    os.chdir('/home/tdeng/SingleCell/data/pancreas/separated data')
+    path = '/home/tdeng/SingleCell/data/pancreas/separated data/'
     not_cell_type = ['unclear', 'not applicable', 'unclassified', 'co-expression', 'beta.contaminated',
-                     'alpha.contaminated', 'delta.contaminated', 'gamma.contaminated']
+                     'alpha.contaminated', 'delta.contaminated', 'gamma.contaminated', 'unassigned']
 
     for pan_type in ['muraro', 'segerstolpe', 'xin']:
         # get raw data
-        features = pd.read_csv(pan_type.capitalize() + '_pancreas.csv', index_col=0).T
-        labels = pd.read_csv(pan_type.capitalize() + '_trueID.csv', usecols=[1])
+        features = pd.read_csv(path + pan_type.capitalize() + '_pancreas.csv', index_col=0).T
+        labels = pd.read_csv(path + pan_type.capitalize() + '_trueID.csv', usecols=[1])
         # which cells should be kept
         is_clear = ~labels['x'].isin(not_cell_type).values
         filtered_features, filtered_labels = features.loc[is_clear, :], labels.loc[is_clear]
         # save filtered data
-        print('The raw data has {} cells. The filtered data has {} cells.'.format(labels.shape[0],
-                                                                                  filtered_labels.shape[0]))
-        filtered_features.to_csv(pan_type.capitalize() + '_pancreas_filtered.csv')
-        filtered_labels.reset_index(drop=True).to_csv(pan_type.capitalize() + '_trueID_filtered.csv')
+        filtered_features.to_csv(path + pan_type.capitalize() + '_pancreas_filtered.csv')
+        filtered_labels.reset_index(drop=True).to_csv(path + pan_type.capitalize() + '_trueID_filtered.csv')
+        print('{}: The raw data has {} cells. The filtered data has {} cells.'.format(
+            pan_type.capitalize(), labels.shape[0], filtered_labels.shape[0]))
 
 
 def get_gene_names(columns):
@@ -102,12 +100,17 @@ def get_gene_names(columns):
     :param columns: dataframe.columns
     :return: an array contains gene names
     """
-    if '__' in columns[0]:
+    if '__' in columns[0] and columns[0][0] != '"' and columns[0][-1] != '"':
         gene_names = pd.Series(columns).str.split('__', expand=True).iloc[:, 0].values
+    elif '__' not in columns[0] and columns[0][0] == '"' and columns[0][-1] == '"':
+        gene_names = np.char.strip(np.array(columns, dtype=np.str), '"')
+    elif '__' in columns[0] and columns[0][0] == '"' and columns[0][-1] == '"':
+        gene_names = np.char.strip(np.array(columns, dtype=np.str), '"')
+        gene_names = pd.Series(gene_names).str.split('__', expand=True).iloc[:, 0].values
     elif '\t' in columns[0]:
         gene_names = pd.Series(columns).str.split('\t', expand=True).iloc[:, 1].values
     else:
-        gene_names = pd.Series(columns).values
+        gene_names = np.array(columns, dtype=np.str)
     return gene_names
 
 
@@ -124,11 +127,12 @@ def save_filtered_data(X, y, all_genes, selected_genes):
     """
     # clustering
     mask = np.isin(all_genes, selected_genes)
-    X.loc[:, mask].to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
+    X_selected = X.loc[:, mask]
+    X_selected.to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
     y.index = X.index
     y.to_csv('scRNA-FeatureSelection/tempData/temp_y.csv')
     # classification
-    X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=True, test_size=0.3, random_state=2021)
+    X_train, X_test, y_train, y_test = train_test_split(X_selected, y, shuffle=True, test_size=0.3, random_state=2021)
     X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X_train.csv')
     X_test.to_csv('scRNA-FeatureSelection/tempData/temp_X_test.csv')
     y_train.to_csv('scRNA-FeatureSelection/tempData/temp_y_train.csv')
@@ -162,10 +166,24 @@ def PBMC_sample_to_csv(fraction):
     :param fraction: double, sampling rate
     :return: None
     """
-    path = '/home/tdeng/SingleCell/data/PBMC/integrated data'
+    path = '/home/tdeng/SingleCell/data/PBMC/integrated data/'
     data = pd.read_hdf(path + 'PBMC_AllCells_withLables.h5', key='AllCells')
     samples = data.sample(frac=fraction, random_state=2020).reset_index(drop=True)
     samples.columns.name = ''
     samples.columns = pd.Series(samples.columns).str.split('\t', expand=True).iloc[:, 1].values
     samples.iloc[:, :-1].to_csv(path + 'raw_features_sample' + str(int(fraction * 100)) + '.csv')
     samples.iloc[:, -1].to_csv(path + 'raw_labels_sample' + str(int(fraction * 100)) + '.csv')
+    print('{} PBMC cells have been saved.'.format(samples.shape[0]))
+
+
+def random_choice(X, y, size):
+    """
+    Randomly choose cells and labels.
+
+    :param X: ndarray, count matrix
+    :param y: ndarray, labels
+    :param size: number of cells that are randomly chosen
+    :return: random cells and corresponding labels
+    """
+    rand_idx = np.random.choice(a=X.shape[0], replace=False, size=size)
+    return X[rand_idx], y[rand_idx]

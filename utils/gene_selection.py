@@ -14,17 +14,20 @@ def evaluate_gene_selection_method(dataset=None, methods=None, datatype=None):
     :param datatype: string, the method is used on raw or norm data
     :return: None
     """
-    X_raw, X_norm, y, trusted_markers = load_data(dataset)
+    if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
+        X_raw, X_norm, y, trusted_markers = load_data('PBMC5')
+        print('Using 5% of PBMC cells because scGeneFit needs lots of system resource.')
+    else:
+        X_raw, X_norm, y, trusted_markers = load_data(dataset)
     gene_names = get_gene_names(X_raw.columns)
     for method in methods:
         if datatype == 'raw':
             result = select_features(dataset, 1000, method, gene_names, X=X_raw.values, y=np.squeeze(y.values))
         elif datatype == 'norm':
-            result = select_features(dataset, 1000, method, gene_names, X=X_raw.values, y=np.squeeze(y.values))
+            result = select_features(dataset, 1000, method, gene_names, X=X_norm.values, y=np.squeeze(y.values))
         else:
             print("The parameter 'datatype' is wrong. Please check again.")
             return None
         save_filtered_data(X_raw, y, gene_names, result)
-        # TODO same numbers of genes and clusters
         os.system('Rscript scRNA-FeatureSelection/utils/RCode/main.R')
         evaluate_method(trusted_markers, result, y)

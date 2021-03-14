@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
-from utils.utils import delAll, get_gene_names
+from utils.utils import get_gene_names
 from utils.scGeneFit import scGeneFit
 import os
 # tree models
@@ -83,11 +83,11 @@ def select_features(data_name, feature_num, method, all_features, X, y):
     elif method == 'cellassign':
         os.system("export MKL_THREADING_LAYER=GNU && Rscript scRNA-FeatureSelection/utils/RCode/CellAssign.R "+data_name)
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_cellassign.csv'
-        return get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=0))
+        return get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=1))
     elif method == 'deviance':
         os.system("Rscript scRNA-FeatureSelection/utils/RCode/Deviance.R " + data_name)
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_deviance.csv'
-        return get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=0))
+        return get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=1))
     elif method == 'scGeneFit':
         le = LabelEncoder()
         y_encoded = le.fit_transform(y)
