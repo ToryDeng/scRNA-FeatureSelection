@@ -19,6 +19,7 @@ def evaluate_gene_selection_method(dataset=None, methods=None, datatype=None):
         print('Using 5% of PBMC cells because scGeneFit needs lots of system resource.')
     else:
         X_raw, X_norm, y, trusted_markers = load_data(dataset)
+    print("The dataset has {} cells and {} genes.".format(X_raw.shape[0], X_raw.shape[1]))
     gene_names = get_gene_names(X_raw.columns)
     for method in methods:
         if datatype == 'raw':
