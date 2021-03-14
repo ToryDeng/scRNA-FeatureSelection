@@ -9,3 +9,6 @@ Several feature selection methods for scRNA-seq analysis using python and R
       scGeneFit.py         # scGeneFit method for feature selection <br>  
       utils.py             # data processing functions 
       gene_selection.py    # the main function 'evaluate_gene_selection_method'
+
+## Included Methods
+- random forest
