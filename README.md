@@ -37,3 +37,7 @@ evaluate_gene_selection_method(dataset='muraro', methods=['cellassign', 'devianc
 - *'segerstolpe'*
 - *'xin'*
 #### PBMC Datasets
+- *'PBMC50'*: 50% of the complete PBMC dataset
+- *'PBMC20'*: 20% of the complete PBMC dataset
+- *'PBMC10'*: 10% of the complete PBMC dataset
+- *'PBMC5'*: 5% of the complete PBMC dataset
