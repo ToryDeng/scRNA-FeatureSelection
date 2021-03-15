@@ -26,7 +26,7 @@ def evaluate_method(trusted_features, selected_features, label_true, rank=True):
             ''.join([temp_path, 'temp_', clustering_method, '.csv']),
             delimiter=',', skiprows=1, dtype=np.str)
         ari = adjusted_rand_score(np.squeeze(label_true), np.squeeze(label_pred))
-        print("ari of {}: {:.5f}".format(clustering_method, ari))
+        print("ARI of {}: {:.5f}".format(clustering_method, ari))
     # evaluate using classification methods
     label_test = np.loadtxt(temp_path + 'temp_y_test.csv', delimiter=',', skiprows=1,dtype=np.object)[:, 1]
     for assign_method in ['scmap_cluster', 'scmap_cell', 'singlecellnet']:
