@@ -26,5 +26,5 @@ Several feature selection methods for scRNA-seq analysis using python and R
 ## Example
 ```python
 from utils.gene_selection import evaluate_gene_selection_method
-evaluate_gene_selection_method(dataset='xin', methods=['rf', 'lgb', 'xgb', 'nsc', 'cv2', 'var'], datatype='raw')
+evaluate_gene_selection_method(dataset='xin', methods=['rf', 'lgb', 'xgb', 'nsc', 'cv2', 'var'], data_type='raw')
 ```
