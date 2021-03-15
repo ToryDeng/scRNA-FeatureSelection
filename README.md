@@ -41,3 +41,7 @@ evaluate_gene_selection_method(dataset='muraro', methods=['cellassign', 'devianc
 - *'PBMC20'*: 20% of the complete PBMC dataset
 - *'PBMC10'*: 10% of the complete PBMC dataset
 - *'PBMC5'*: 5% of the complete PBMC dataset
+
+### Notes
+1. You can choose which type of data the methods will be implemented on by specifying the parameter *'data_type'*: 'raw' means raw data, 'norm' means normalized data.
+2. Parameter *'methods'* must be a list. If *'methods'* contains 'scGeneFit' and dataset is PBMC, then all the methods will only run on PBMC5. This is because the scGeneFit written by Python is very slow and occupies much system resource when the number of cells is more than 3000.
