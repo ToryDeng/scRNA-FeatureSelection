@@ -127,6 +127,8 @@ def save_filtered_data(X, y, all_genes, selected_genes):
     """
     # clustering
     mask = np.isin(all_genes, selected_genes)
+    if mask.sum() == 0:
+        print("No gene is selected!")
     X_selected = X.loc[:, mask]
     X_selected.to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
     y.index = X.index
