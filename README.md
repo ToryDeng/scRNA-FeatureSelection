@@ -11,11 +11,16 @@ Several feature selection methods for scRNA-seq analysis using python and R
       gene_selection.py    # the main function 'evaluate_gene_selection_method'
 
 ## Included Methods
-- Random Forest  - XGBOOST
-- LigthtGBM      - Seurat
-- Variance       - Deviance
-- M3Drop         - CellAssign
-- CV2            - scGeneFit
+- Random Forest  
+- XGBOOST
+- LigthtGBM      
+- Seurat
+- Variance       
+- Deviance
+- M3Drop         
+- CellAssign
+- CV2            
+- scGeneFit
 - Nearest Shrunken Centroid
 
 
