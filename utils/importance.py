@@ -44,7 +44,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
     :param y: cell types
     :return: the max feature_num important genes
     """
-    print('The method you are using is {}.'.format(method))
+    print('******************** {} ********************'.format(method))
     if method == 'rf':  # random forest
         forest = RandomForestClassifier(n_estimators=100, n_jobs=15, random_state=0, verbose=0).fit(X, y)
         return most_important_genes(forest.feature_importances_, feature_num, all_features)
@@ -67,7 +67,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         return most_important_genes(np.var(X, axis=0), feature_num, all_features)
     elif method == 'cv2':
         cv2 = np.squeeze(np.std(X, axis=0) / np.squeeze(np.mean(X, axis=0))) ** 2
-        print('num of genes whose mean are less than 1e-4:{}'.format(np.sum(np.squeeze(np.mean(X, axis=0)) < 1e-4)))
+        print('Number of genes whose mean are less than 1e-4: {}'.format(np.sum(np.squeeze(np.mean(X, axis=0)) < 1e-4)))
         return most_important_genes(cv2, feature_num, all_features)
     elif method == 'nsc':
         th_dict = {'shrink_threshold': np.arange(0.0, 1.01, 0.01)}
@@ -93,6 +93,3 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         y_encoded = le.fit_transform(y)
         importances = scGeneFit(X, y_encoded, 0)
         return most_important_genes(importances, feature_num, all_features)
-
-
-

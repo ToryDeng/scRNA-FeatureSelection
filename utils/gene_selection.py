@@ -1,6 +1,7 @@
 from utils.utils import get_gene_names, save_filtered_data, load_data
 from utils.evaluate_result import evaluate_method
 from utils.importance import select_features
+import warnings
 import numpy as np
 import os
 
@@ -16,10 +17,11 @@ def evaluate_gene_selection_method(dataset=None, methods=None, data_type=None):
     """
     if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
         X_raw, X_norm, y, trusted_markers = load_data('PBMC5')
-        print('Using 5% of PBMC cells because scGeneFit needs lots of system resource.')
+        warnings.warn("Using 5% of PBMC cells because scGeneFit needs lots of system resource.", RuntimeWarning)
     else:
         X_raw, X_norm, y, trusted_markers = load_data(dataset)
-    print("The dataset has {} cells and {} genes.".format(X_raw.shape[0], X_raw.shape[1]))
+    print("*************** Dataset Information ***************")
+    print("Name:{}  Type:{}  Cell(s):{}  Gene(s):{}".format(dataset, data_type, X_raw.shape[0], X_raw.shape[1]))
     gene_names = get_gene_names(X_raw.columns)
     for method in methods:
         if data_type == 'raw':
@@ -31,4 +33,4 @@ def evaluate_gene_selection_method(dataset=None, methods=None, data_type=None):
             return None
         save_filtered_data(X_raw, y, gene_names, result)
         os.system('Rscript scRNA-FeatureSelection/utils/RCode/main.R')
-        evaluate_method(trusted_markers, result, y)
+        evaluate_method(trusted_markers, result)

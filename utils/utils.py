@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-
+import warnings
 import os
 
 
@@ -13,13 +13,13 @@ def filter_const_genes(X):
     :return: Filtered count matrix
     """
     mask = X.sum(axis=0) != 0
-    print("{} genes have been removed.".format(X.shape[1] - mask.sum()))
+    print("Removed {} gene(s).".format(X.shape[1] - mask.sum()))
     return X.loc[:, mask]
 
 
 def filter_const_cells(X, y):
     mask = X.sum(axis=1) != 0
-    print("{} cells have been removed.".format(X.shape[0] - mask.sum()))
+    print("Removed {} cell(s).".format(X.shape[0] - mask.sum()))
     return X.loc[mask, :], y[mask.values]
 
 
@@ -114,13 +114,13 @@ def get_gene_names(columns):
     return gene_names
 
 
-def save_filtered_data(X, y, all_genes, selected_genes):
+def save_filtered_data(X, Y, all_genes, selected_genes):
     """
     Save raw counts with only marker genes, labels and split data to training set and test set
-    for evaluation using clustering and classification method.
+    for evaluation using clustering and classification methods.
 
     :param X: raw counts
-    :param y: labels
+    :param Y: labels
     :param all_genes: all genes
     :param selected_genes: selected genes
     :return: None
@@ -128,10 +128,12 @@ def save_filtered_data(X, y, all_genes, selected_genes):
     # clustering
     mask = np.isin(all_genes, selected_genes)
     if mask.sum() == 0:
-        print("No gene is selected!")
-    X_selected = X.loc[:, mask]
+        warnings.warn("No gene is selected!", RuntimeWarning)
+    X_selected, y = filter_const_cells(X.loc[:, mask], Y)  # some cells may have zero counts
+    print('After gene selection, the dataset now has {} cells and {} genes.'.format(
+        X_selected.shape[0], X_selected.shape[1]))
     X_selected.to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
-    y.index = X.index
+    y.index = X_selected.index
     y.to_csv('scRNA-FeatureSelection/tempData/temp_y.csv')
     # classification
     X_train, X_test, y_train, y_test = train_test_split(X_selected, y, shuffle=True, test_size=0.3, random_state=2021)
