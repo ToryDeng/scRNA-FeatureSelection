@@ -114,7 +114,7 @@ def get_gene_names(columns):
     return gene_names
 
 
-def save_filtered_data(X, Y, all_genes, selected_genes):
+def save_data(X, Y, all_genes=None, selected_genes=None, filtering=True):
     """
     Save raw counts with only marker genes, labels and split data to training set and test set
     for evaluation using clustering and classification methods.
@@ -123,15 +123,20 @@ def save_filtered_data(X, Y, all_genes, selected_genes):
     :param Y: labels
     :param all_genes: all genes
     :param selected_genes: selected genes
+    :param filtering: if all_genes is None and selected_genes is None and filter = True, then all genes
+    will be saved
     :return: None
     """
+    if all_genes is None and selected_genes is None and not filtering:
+        X_selected, y = X, Y
+    else:
+        mask = np.isin(all_genes, selected_genes)
+        if mask.sum() == 0:
+            warnings.warn("No gene is selected!", RuntimeWarning)
+        X_selected, y = filter_const_cells(X.loc[:, mask], Y)  # some cells may have zero counts
+        print('After gene selection, the dataset now has {} cells and {} genes.'.format(
+            X_selected.shape[0], X_selected.shape[1]))
     # clustering
-    mask = np.isin(all_genes, selected_genes)
-    if mask.sum() == 0:
-        warnings.warn("No gene is selected!", RuntimeWarning)
-    X_selected, y = filter_const_cells(X.loc[:, mask], Y)  # some cells may have zero counts
-    print('After gene selection, the dataset now has {} cells and {} genes.'.format(
-        X_selected.shape[0], X_selected.shape[1]))
     X_selected.to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
     y.index = X_selected.index
     y.to_csv('scRNA-FeatureSelection/tempData/temp_y.csv')

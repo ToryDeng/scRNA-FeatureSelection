@@ -1,7 +1,8 @@
-from utils.utils import get_gene_names, save_filtered_data, load_data
+from utils.utils import get_gene_names, save_data, load_data
 from utils.evaluate_result import evaluate_method
 from utils.importance import select_features
 import warnings
+import pandas as pd
 import numpy as np
 import os
 
@@ -16,10 +17,11 @@ def evaluate_gene_selection_method(dataset=None, methods=None, data_type=None):
     :return: None
     """
     if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
-        X_raw, X_norm, y, trusted_markers = load_data('PBMC5')
+        dataset = 'PBMC5'
         warnings.warn("Using 5% of PBMC cells because scGeneFit needs lots of system resource.", RuntimeWarning)
-    else:
-        X_raw, X_norm, y, trusted_markers = load_data(dataset)
+    X_raw, X_norm, y, trusted_markers = load_data(dataset)
+    ix = ['MRR', 'marker_genes_found', 'seurat_ARI', 'sc3_ARI', 'scmap_cluster_F1', 'scmap_cell_F1', 'singlecellnet_F1']
+    performance_record = pd.DataFrame(np.zeros((7, len(methods))), index=ix, columns=methods)
     print("*************** Dataset Information ***************")
     print("Name:{}  Type:{}  Cell(s):{}  Gene(s):{}".format(dataset, data_type, X_raw.shape[0], X_raw.shape[1]))
     gene_names = get_gene_names(X_raw.columns)
@@ -31,6 +33,17 @@ def evaluate_gene_selection_method(dataset=None, methods=None, data_type=None):
         else:
             print("The parameter 'data_type' is wrong. Please check again.")
             return None
-        save_filtered_data(X_raw, y, gene_names, result)
+        # calculate ARI and F1-score before gene selection
+        save_data(X_raw, y, filtering=False)
         os.system('Rscript scRNA-FeatureSelection/utils/RCode/main.R')
-        evaluate_method(trusted_markers, result)
+        before = evaluate_method(trusted_markers, result, mode='all')
+        # calculate ARI and F1-score after gene selection
+        save_data(X_raw, y, gene_names, result)
+        os.system('Rscript scRNA-FeatureSelection/utils/RCode/main.R')
+        after = evaluate_method(trusted_markers, result, mode='eval')
+        for key in after.keys():
+            if key not in before.keys():
+                performance_record.loc[key, method] = after[key]
+            else:
+                performance_record.loc[key, method] = after[key] - before[key]
+    performance_record.to_csv('scRNA-FeatureSelection/results/' + dataset + '_record.csv')
