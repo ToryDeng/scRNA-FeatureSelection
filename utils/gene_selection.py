@@ -46,4 +46,4 @@ def evaluate_gene_selection_method(dataset=None, methods=None, data_type=None):
                 performance_record.loc[key, method] = after[key]
             else:
                 performance_record.loc[key, method] = after[key] - before[key]
-    performance_record.to_csv('scRNA-FeatureSelection/results/' + dataset + '_record.csv')
+    performance_record.to_csv(''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_record.csv']))
