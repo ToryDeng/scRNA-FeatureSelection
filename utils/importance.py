@@ -29,7 +29,8 @@ def most_important_genes(importances, feature_num, all_features):
         print('The length of importance and gene names are not the same! Please check again!')
         return None
     else:
-        return all_features[np.argsort(importances)[::-1][:feature_num]]
+        idx = np.argsort(importances)[::-1][:feature_num]
+        return all_features[idx], importances[idx]
 
 
 def select_features(data_name, feature_num, method, all_features, X, y):
@@ -42,7 +43,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
     :param all_features: names of all genes
     :param X: count matrix
     :param y: cell types
-    :return: the max feature_num important genes
+    :return: the max feature_num important genes and the corresponding importance (except cellassign)
     """
     print('******************** {} ********************'.format(method))
     if method == 'rf':  # random forest
@@ -58,7 +59,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         return most_important_genes(xgb.feature_importances_, feature_num, all_features)
     elif method == 'seurat':
         mean, var = X.mean(axis=0), X.var(axis=0)
-        mean_fit, var_fit, weigts = loess_1d(np.log10(mean), np.log10(var), frac=0.3, degree=2)
+        mean_fit, var_fit, weights = loess_1d(np.log10(mean), np.log10(var), frac=0.3, degree=2)
         z = (X - mean) / (10 ** (var_fit / 2))
         z[z > X.shape[0] ** 0.5] = X.shape[0] ** 0.5
         z = np.var(np.squeeze(z), axis=0)
@@ -79,7 +80,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         os.system("Rscript scRNA-FeatureSelection/utils/RCode/M3Drop.R " + data_name)
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_m3drop.csv'
         genes = pd.read_csv(gene_path, usecols=[1, 3]).sort_values(by='p.value', ascending=True)
-        return get_gene_names(genes['Gene'].values[:feature_num])
+        return get_gene_names(genes['Gene'].values[:feature_num]), 1 - genes['p.value'].values[:feature_num]
     elif method == 'cellassign':
         os.system("export MKL_THREADING_LAYER=GNU && Rscript scRNA-FeatureSelection/utils/RCode/CellAssign.R "+data_name)
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_cellassign.csv'
@@ -87,7 +88,8 @@ def select_features(data_name, feature_num, method, all_features, X, y):
     elif method == 'deviance':
         os.system("Rscript scRNA-FeatureSelection/utils/RCode/Deviance.R " + data_name)
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_deviance.csv'
-        return get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=1))
+        gene_and_importance = np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0, 1], skiprows=1)
+        return get_gene_names(gene_and_importance[:, 0]), gene_and_importance[:, 1].astype(np.float)
     elif method == 'scGeneFit':
         le = LabelEncoder()
         y_encoded = le.fit_transform(y)
