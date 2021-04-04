@@ -12,8 +12,11 @@ Several feature selection methods for scRNA-seq analysis using python and R
     examples.ipynb-  # some examples
 
 ## Included Methods
+| Method | Classification  | Clustering |
+| ------------- | :-------------: | :--------: |
+| Random Forest | ✅ | 🔶
 - Random Forest  
-- XGBOOST
+- XGBoost
 - LigthtGBM      
 - Seurat
 - Variance       
@@ -26,12 +29,12 @@ Several feature selection methods for scRNA-seq analysis using python and R
 
 
 ## Example
+
 ```python
-from utils.gene_selection import evaluate_gene_selection_method
+from utils.evaluation import evaluate_classification_methods, evaluate_clustering_methods
 
-
-evaluate_gene_selection_method(dataset='xin', methods=['rf', 'lgb', 'xgb', 'nsc', 'cv2', 'var'], data_type='raw')
-evaluate_gene_selection_method(dataset='muraro', methods=['cellassign', 'deviance', 'm3drop'], data_type='norm')
+evaluate_classification_methods(dataset='xin', methods=['rf', 'lgb', 'xgb', 'nsc', 'cv2', 'var'], data_type='raw')
+evaluate_clustering_methods(dataset='muraro', methods=['cellassign', 'deviance', 'm3drop'], data_type='norm')
 ```
 ### Datasets
 #### Pancreas Datasets

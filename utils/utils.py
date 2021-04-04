@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 import warnings
 import os
 
@@ -114,43 +113,10 @@ def get_gene_names(columns):
     return gene_names
 
 
-def save_data(X, Y, all_genes=None, selected_genes=None, filtering=True):
+def delete(path):
     """
-    Save raw counts with only marker genes, labels and split data to training set and test set
-    for evaluation using clustering and classification methods.
-
-    :param X: raw counts
-    :param Y: labels
-    :param all_genes: all genes
-    :param selected_genes: selected genes
-    :param filtering: if all_genes is None and selected_genes is None and filter = True, then all genes
-    will be saved
-    :return: None
-    """
-    if all_genes is None and selected_genes is None and not filtering:
-        X_selected, y = X, Y
-    else:
-        mask = np.isin(all_genes, selected_genes)
-        if mask.sum() == 0:
-            warnings.warn("No gene is selected!", RuntimeWarning)
-        X_selected, y = filter_const_cells(X.loc[:, mask], Y)  # some cells may have zero counts
-        print('After gene selection, the dataset now has {} cells and {} genes.'.format(
-            X_selected.shape[0], X_selected.shape[1]))
-    # clustering
-    X_selected.to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
-    y.index = X_selected.index
-    y.to_csv('scRNA-FeatureSelection/tempData/temp_y.csv')
-    # classification
-    X_train, X_test, y_train, y_test = train_test_split(X_selected, y, shuffle=True, test_size=0.3, random_state=2021)
-    X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X_train.csv')
-    X_test.to_csv('scRNA-FeatureSelection/tempData/temp_X_test.csv')
-    y_train.to_csv('scRNA-FeatureSelection/tempData/temp_y_train.csv')
-    y_test.to_csv('scRNA-FeatureSelection/tempData/temp_y_test.csv')
-
-
-def delAll(path):
-    """
-    Recursively delete files in a temporary folder.
+    Recursively delete files in a temporary folder if 'path' is a dir, or delete the file when 'path'
+    is a file path.
 
     :param path: folder or file path
     :return: None
@@ -161,7 +127,7 @@ def delAll(path):
             p = os.path.join(path, file)
             if os.path.isdir(p):
                 # recursion
-                delAll(p)
+                delete(p)
             else:
                 os.remove(p)
     else:
@@ -196,3 +162,40 @@ def random_choice(X, y, size):
     """
     rand_idx = np.random.choice(a=X.shape[0], replace=False, size=size)
     return X[rand_idx], y[rand_idx]
+
+
+def cal_marker_num_MRR(trusted_features, selected_features, rank=True):
+    marker_genes_found = np.intersect1d(trusted_features, selected_features).shape[0]
+    if rank:
+        rank_list = np.argwhere(np.isin(selected_features, trusted_features))
+        if len(rank_list) == 0:
+            warnings.warn("MRR: Can not calculate MRR because no marker gene is selected!", RuntimeWarning)
+        else:
+            MRR = np.sum(1 / (rank_list + 1)) / rank_list.shape[0]
+            return marker_genes_found, MRR
+    else:  # len(selected_result) == 1
+        warnings.warn("The method can't obtain gene importance! MRR can't be calculated and is set to 0.",
+                      RuntimeWarning)
+        return marker_genes_found
+
+
+def PerformanceRecord(methods, task):
+    if task == 'assign':
+        index = ['MRR', 'marker_genes_found', 'scmap_cluster_F1', 'scmap_cell_F1', 'singlecellnet_F1']
+    elif task == 'clustering':
+        index = ['MRR', 'marker_genes_found', 'seurat_ARI', 'sc3_ARI']
+    else:
+        index = None
+    return pd.DataFrame(data=np.zeros((len(index), len(methods))), index=index, columns=methods)
+
+
+def save_raw_data(X_train=None, X_test=None, y_train=None, y_test=None, task=None):
+    if task == 'assign':
+        X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X_train.csv')
+        X_test.to_csv('scRNA-FeatureSelection/tempData/temp_X_test.csv')
+        y_train.to_csv('scRNA-FeatureSelection/tempData/temp_y_train.csv')
+        y_test.to_csv('scRNA-FeatureSelection/tempData/temp_y_test.csv')
+    elif task == 'clustering' and X_train is not None and y_train is not None:
+        X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
+        y_train.index = X_train.index
+        y_train.to_csv('scRNA-FeatureSelection/tempData/temp_y.csv')

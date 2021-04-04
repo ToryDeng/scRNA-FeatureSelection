@@ -82,7 +82,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         genes = pd.read_csv(gene_path, usecols=[1, 3]).sort_values(by='p.value', ascending=True)
         return get_gene_names(genes['Gene'].values[:feature_num]), 1 - genes['p.value'].values[:feature_num]
     elif method == 'cellassign':
-        os.system("export MKL_THREADING_LAYER=GNU && Rscript scRNA-FeatureSelection/utils/RCode/CellAssign.R "+data_name)
+        os.system("export MKL_THREADING_LAYER=GNU && Rscript scRNA-FeatureSelection/utils/RCode/CellAssign.R " + data_name)
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_cellassign.csv'
         return get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=1))
     elif method == 'deviance':
