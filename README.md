@@ -53,8 +53,11 @@ The normalization method in **Seurat**.
 - **Number of Marker Genes Found**  
   The number of marker genes which are found in data.
 - **Mean Reciprocal Rank (MRR)**  
-![1](https://latex.codecogs.com/gif.latex?MRR=\frac{1}{\vert&space;Q&space;\vert}\sum_{i=1}^{\vert&space;Q&space;\vert}\frac{1}{rank_{i}})
-
+  ![1](https://latex.codecogs.com/gif.latex?MRR=\frac{1}{\vert&space;Q&space;\vert}\sum_{i=1}^{\vert&space;Q&space;\vert}\frac{1}{rank_{i}})
+- **Adjusted Rand Index (ARI)**  
+  ARI of two clustering methods: Seurat and SC3.
+- **F1-score**  
+  F1-score of two classification methods: scmap and singlecellnet.
 ## Example
 ```python
 from utils.evaluation import evaluate_classification_methods, evaluate_clustering_methods
@@ -68,3 +71,4 @@ evaluate_clustering_methods(dataset='muraro', methods=['cellassign', 'deviance',
 1. You can choose which type of data the methods will be implemented on by specifying the parameter *'data_type'*: 'raw' means raw data, 'norm' means normalized data.
 2. Parameter *'methods'* must be a list. If *'methods'* contains 'scGeneFit' and dataset is PBMC, then all the methods will only run on PBMC5. This is because the scGeneFit written by Python is very slow and occupies much system resource when the number of cells is more than 3000.
 3. CV2 may select 0 marker gene and cause IO error.
+4. The parameter *'n_features'* is fixed at 1000.
