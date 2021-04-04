@@ -1,31 +1,35 @@
 # scRNA-FeatureSelection
-Several feature selection methods for scRNA-seq analysis using python and R
+1. Evaluation of several gene selection methods
+2. Ensemble gene selection
 
 ## Program Structure
-    utils-           # functions about data processing and several feature selection methods  
-      evaluate_result.py   # evaluat the result of specific feature selection method   
+    utils-           # functions about data processing and several feature selection methods
+      RCode-               # R scripts
+      evaluation.py        # evaluat specific feature selection methods 
       importance.py        # calculate importance of every gene and select the most important ones   
       nearest_centroid.py  # nearest shrunken centroid 
       scGeneFit.py         # scGeneFit method for feature selection
       utils.py             # data processing functions 
-      gene_selection.py    # the main function 'evaluate_gene_selection_method'
-    examples.ipynb-  # some examples
+      ensemble_gene_selection.py    # the ensemble gene selection function
+    tempData-        # store temporary data
+    results-         # store results of evaluation
+    examples.ipynb-  # some examples about usage
 
 ## Included Methods
 | Method | Classification  | Clustering |
-| ------------- | :-------------: | :--------: |
-| Random Forest |        ✔     ️ |    ❌      |
-|    XGBoost    |        ✅
-- 
-- LigthtGBM      
-- Seurat
-- Variance       
-- Deviance
-- M3Drop         
-- CellAssign
-- CV2            
-- scGeneFit
-- Nearest Shrunken Centroid
+| :----: | :-------------: | :--------: |
+| Random Forest | ✔ | ❌ |
+| XGBoost    | ✔ | ❌ |
+| LigthtGBM   | ✔ | ❌ |
+| Variance    | ✔ | ✔ |
+| CV2         | ✔ | ✔ |
+| Nearest Shrunken Centroid | ✔ | ❌ |
+| Seurat      | ✔ | ✔ |
+| Deviance | ✔ | ✔ |
+| M3Drop          | ✔ | ✔ |
+| CellAssign | ✔ | ❌ |
+| scGeneFit | ✔ | ❌ |
+
 
 
 ## Example
@@ -36,12 +40,12 @@ from utils.evaluation import evaluate_classification_methods, evaluate_clusterin
 evaluate_classification_methods(dataset='xin', methods=['rf', 'lgb', 'xgb', 'nsc', 'cv2', 'var'], data_type='raw')
 evaluate_clustering_methods(dataset='muraro', methods=['cellassign', 'deviance', 'm3drop'], data_type='norm')
 ```
-### Datasets
-#### Pancreas Datasets
+## Datasets
+### Pancreas Datasets
 - *'muraro'*
 - *'segerstolpe'*
 - *'xin'*
-#### PBMC Datasets
+### PBMC Datasets
 - *'PBMC50'*: 50% of the complete PBMC dataset
 - *'PBMC20'*: 20% of the complete PBMC dataset
 - *'PBMC10'*: 10% of the complete PBMC dataset
