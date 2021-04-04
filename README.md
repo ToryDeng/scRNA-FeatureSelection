@@ -14,9 +14,9 @@ Several feature selection methods for scRNA-seq analysis using python and R
 ## Included Methods
 | Method | Classification  | Clustering |
 | ------------- | :-------------: | :--------: |
-| Random Forest | ✅ | 🔶
-- Random Forest  
-- XGBoost
+| Random Forest |        ✔     ️ |    ❌      |
+|    XGBoost    |        ✅
+- 
 - LigthtGBM      
 - Seurat
 - Variance       
