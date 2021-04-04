@@ -53,7 +53,7 @@ The normalization method in **Seurat**.
 - **Number of Marker Genes Found**  
   The number of marker genes which are found in data.
 - **Mean Reciprocal Rank (MRR)**  
-![img_1.png](img_1.png)
+![1](https://latex.codecogs.com/gif.latex?MRR=\frac{1}{\vert&space;Q&space;\vert}\sum_{i=1}^{\vert&space;Q&space;\vert}\frac{1}{rank_{i}})
 
 ## Example
 ```python
