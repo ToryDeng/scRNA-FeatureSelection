@@ -47,15 +47,14 @@
 |*'xin'*        | 365 | 321 |
 
 ## Normalization
-The normalization method in **Seurat**:
-```python
-norm_features = np.log1p(raw_features / raw_features.sum(1).values.reshape(raw_features.shape[0], 1) * scale_factor)
-```
+The normalization method in **Seurat**.
+
 ## Evaluation
 - **Number of Marker Genes Found**  
   The number of marker genes which are found in data.
 - **Mean Reciprocal Rank (MRR)**  
-![1](http://latex.codecogs.com/svg.latex?\int_a^bf(x)\dx)
+![img_1.png](img_1.png)
+
 ## Example
 ```python
 from utils.evaluation import evaluate_classification_methods, evaluate_clustering_methods
