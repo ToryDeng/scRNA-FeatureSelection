@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from utils.utils import get_gene_names
-from utils.scGeneFit import scGeneFit
+import warnings
 import os
 # tree models
 from sklearn.ensemble import RandomForestClassifier
@@ -14,6 +14,10 @@ from utils.nearest_centroid import nearest_centroid_select
 from sklearn.model_selection import GridSearchCV
 # seurat
 from loess.loess_1d import loess_1d
+# scGeneFit
+from utils.scGeneFit import scGeneFit
+# fisher score
+from utils.fisher_score import fisher_score
 
 
 def most_important_genes(importances, feature_num, all_features):
@@ -26,7 +30,7 @@ def most_important_genes(importances, feature_num, all_features):
     :return: the max feature_num important genes
     """
     if importances.shape[0] != all_features.shape[0]:
-        print('The length of importance and gene names are not the same! Please check again!')
+        warnings.warn('The length of importance and gene names are not the same. Please check again!', RuntimeWarning)
         return None
     else:
         idx = np.argsort(importances)[::-1][:feature_num]
@@ -67,11 +71,12 @@ def select_features(data_name, feature_num, method, all_features, X, y):
     elif method == 'var':
         return most_important_genes(np.var(X, axis=0), feature_num, all_features)
     elif method == 'cv2':
-        cv2 = np.squeeze(np.std(X, axis=0) / np.squeeze(np.mean(X, axis=0))) ** 2
+        cv2 = np.square(np.std(X, axis=0) / np.mean(X, axis=0))
         print('Number of genes whose mean are less than 1e-4: {}'.format(np.sum(np.squeeze(np.mean(X, axis=0)) < 1e-4)))
         return most_important_genes(cv2, feature_num, all_features)
     elif method == 'nsc':
         th_dict = {'shrink_threshold': np.arange(0.0, 1.01, 0.01)}
+        print(X.shape, y.shape)
         gs = GridSearchCV(NearestCentroid(), param_grid=th_dict, cv=3, scoring='balanced_accuracy').fit(X, y)
         print('best score:{}, best threshold:{}'.format(gs.best_score_, gs.best_params_['shrink_threshold']))
         var = nearest_centroid_select(X, y, shrink_threshold=gs.best_params_['shrink_threshold'])
@@ -94,4 +99,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         le = LabelEncoder()
         y_encoded = le.fit_transform(y)
         importances = scGeneFit(X, y_encoded, 0)
+        return most_important_genes(importances, feature_num, all_features)
+    elif method == 'fisher_score':
+        importances = fisher_score(X, y)
         return most_important_genes(importances, feature_num, all_features)

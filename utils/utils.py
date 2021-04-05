@@ -169,10 +169,11 @@ def cal_marker_num_MRR(trusted_features, selected_features, rank=True):
     if rank:
         rank_list = np.argwhere(np.isin(selected_features, trusted_features))
         if len(rank_list) == 0:
-            warnings.warn("MRR: Can not calculate MRR because no marker gene is selected!", RuntimeWarning)
+            warnings.warn("Can not calculate MRR because no marker gene is selected! MRR is set to 0.", RuntimeWarning)
+            MRR = 0
         else:
             MRR = np.sum(1 / (rank_list + 1)) / rank_list.shape[0]
-            return marker_genes_found, MRR
+        return marker_genes_found, MRR
     else:  # len(selected_result) == 1
         warnings.warn("The method can't obtain gene importance! MRR can't be calculated and is set to 0.",
                       RuntimeWarning)

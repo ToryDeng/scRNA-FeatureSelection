@@ -1,6 +1,6 @@
 from sklearn.metrics import adjusted_rand_score, f1_score
-from utils.utils import get_gene_names, load_data, cal_marker_num_MRR, delete, filter_const_cells, PerformanceRecord,\
-    save_raw_data
+from utils.utils import get_gene_names, load_data, cal_marker_num_MRR, delete, filter_const_cells, PerformanceRecord, \
+    save_raw_data, filter_const_genes
 from utils.importance import select_features
 from sklearn.model_selection import KFold
 import numpy as np
@@ -62,7 +62,6 @@ def evaluate_classification_methods(dataset, methods, data_type):
         dataset = 'PBMC5'
         warnings.warn("Using 5% of PBMC cells because scGeneFit needs lots of system resource.", RuntimeWarning)
     X_raw, X_norm, y, trusted_markers = load_data(dataset)
-    gene_names = get_gene_names(X_raw.columns)
 
     # prepare performance record
     performance_record = PerformanceRecord(methods=methods, task='assign')
@@ -70,29 +69,37 @@ def evaluate_classification_methods(dataset, methods, data_type):
     # output dataset information
     print("*************** Dataset Information ***************")
     print("Name:{}  Type:{}  Cell(s):{}  Gene(s):{}\nMarker Gene(s):{}".format(
-        dataset, data_type, X_raw.shape[0], X_raw.shape[1], np.intersect1d(gene_names, trusted_markers).shape[0])
+        dataset, data_type, X_raw.shape[0], X_raw.shape[1],
+        np.intersect1d(get_gene_names(X_raw.columns), trusted_markers).shape[0])
     )
 
     # 5-fold CV
-    kf = KFold(n_splits=5, random_state=2021, shuffle=True)
+    kf = KFold(n_splits=5, random_state=2020, shuffle=True)
     for train_idx, test_idx in kf.split(X_raw):
         # split and save raw data
         X_raw_train, X_raw_test = X_raw.iloc[train_idx], X_raw.iloc[test_idx]
         X_norm_train, X_norm_test = X_norm.iloc[train_idx], X_norm.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-        save_raw_data(X_raw_train, X_norm_test, y_train, y_test, task='assign')
+        save_raw_data(X_raw_train, X_raw_test, y_train, y_test, task='assign')
 
         # calculate F1-score before feature selection
         before = evaluate_classification_result()
+
+        # remove const genes before feature selection
+        X_raw_train, X_norm_train = filter_const_genes(X_raw_train), filter_const_genes(X_norm_train)
+        X_raw_test, X_norm_test = X_raw_test.loc[:, X_raw_train.columns], X_norm_test.loc[:, X_norm_train.columns]
+        gene_names = get_gene_names(X_raw_train.columns)
 
         # feature selection
         for method in methods:
             # delete current files in tempData
             delete('scRNA-FeatureSelection/tempData/')
             if data_type == 'raw':
-                result = select_features(dataset, 1000, method, gene_names, X_raw_train.values, np.squeeze(y_train.values))
+                result = select_features(dataset, 1000, method, gene_names, X_raw_train.values,
+                                         np.squeeze(y_train.values))
             elif data_type == 'norm':
-                result = select_features(dataset, 1000, method, gene_names, X_norm_train.values, np.squeeze(y_train.values))
+                result = select_features(dataset, 1000, method, gene_names, X_norm_train.values,
+                                         np.squeeze(y_train.values))
             else:
                 result = None
                 warnings.warn("The parameter 'data_type' is wrong. Please check again.", RuntimeWarning)
@@ -115,7 +122,7 @@ def evaluate_classification_methods(dataset, methods, data_type):
                 warnings.warn("No gene is selected!", RuntimeWarning)
             # filter out non-markers
             X_train_selected, y_train = filter_const_cells(X_raw_train.loc[:, mask], y_train)
-            X_test_selected, y_test = filter_const_cells(X_raw_test.loc[:, mask], y_test)
+            X_test_selected, y_test = X_raw_test.loc[:, mask], y_test
 
             # save X_train and X_test after gene selection
             save_raw_data(X_train_selected, X_test_selected, y_train, y_test, task='assign')
