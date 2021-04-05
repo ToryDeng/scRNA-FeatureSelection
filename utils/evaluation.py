@@ -95,6 +95,7 @@ def evaluate_classification_methods(dataset, methods, data_type):
             # delete current files in tempData
             delete('scRNA-FeatureSelection/tempData/')
             if data_type == 'raw':
+                print(X_raw_train.shape, y_train.shape)
                 result = select_features(dataset, 1000, method, gene_names, X_raw_train.values,
                                          np.squeeze(y_train.values))
             elif data_type == 'norm':
@@ -121,11 +122,11 @@ def evaluate_classification_methods(dataset, methods, data_type):
             if mask.sum() == 0:
                 warnings.warn("No gene is selected!", RuntimeWarning)
             # filter out non-markers
-            X_train_selected, y_train = filter_const_cells(X_raw_train.loc[:, mask], y_train)
-            X_test_selected, y_test = X_raw_test.loc[:, mask], y_test
+            X_train_selected, y_train_selected = filter_const_cells(X_raw_train.loc[:, mask], y_train)
+            X_test_selected = X_raw_test.loc[:, mask]
 
             # save X_train and X_test after gene selection
-            save_raw_data(X_train_selected, X_test_selected, y_train, y_test, task='assign')
+            save_raw_data(X_train_selected, X_test_selected, y_train_selected, y_test, task='assign')
 
             # execute R script to generate classification result
             after = evaluate_classification_result()

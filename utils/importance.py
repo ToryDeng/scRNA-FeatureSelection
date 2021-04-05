@@ -76,7 +76,6 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         return most_important_genes(cv2, feature_num, all_features)
     elif method == 'nsc':
         th_dict = {'shrink_threshold': np.arange(0.0, 1.01, 0.01)}
-        print(X.shape, y.shape)
         gs = GridSearchCV(NearestCentroid(), param_grid=th_dict, cv=3, scoring='balanced_accuracy').fit(X, y)
         print('best score:{}, best threshold:{}'.format(gs.best_score_, gs.best_params_['shrink_threshold']))
         var = nearest_centroid_select(X, y, shrink_threshold=gs.best_params_['shrink_threshold'])
@@ -103,3 +102,6 @@ def select_features(data_name, feature_num, method, all_features, X, y):
     elif method == 'fisher_score':
         importances = fisher_score(X, y)
         return most_important_genes(importances, feature_num, all_features)
+    else:
+        warnings.warn("Parameter 'method' is wrong. Please check again.")
+        return None
