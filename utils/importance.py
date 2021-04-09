@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
-from utils.utils import get_gene_names
+from utils.utils import get_gene_names, head
 import warnings
 import os
 # tree models
@@ -49,7 +49,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
     :param y: cell types
     :return: the max feature_num important genes and the corresponding importance (except cellassign)
     """
-    print('******************** {} ********************'.format(method))
+    head(name=method)
     if method == 'rf':  # random forest
         forest = RandomForestClassifier(n_estimators=100, n_jobs=15, random_state=0, verbose=0).fit(X, y)
         return most_important_genes(forest.feature_importances_, feature_num, all_features)

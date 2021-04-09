@@ -18,11 +18,11 @@
 ## Included Methods
 | Method | Classification  | Clustering |  Reference |
 | :----: | :-------------: | :--------: | :--------: |
-| Random Forest | ✔ | ❌ |
-| XGBoost    | ✔ | ❌ |
-| LigthtGBM   | ✔ | ❌ |
-| Variance    | ✔ | ✔ |
-| CV2         | ✔ | ✔ |
+| Random Forest | ✔ | ❌ | - |
+| XGBoost    | ✔ | ❌ | - |
+| LigthtGBM   | ✔ | ❌ | - |
+| Variance    | ✔ | ✔ | - |
+| CV2         | ✔ | ✔ | - |
 | Nearest Shrunken Centroid | ✔ | ❌ | [1] |
 | Seurat       | ✔ | ✔ | [2] |
 | Deviance     | ✔ | ✔ | [3] |
@@ -50,34 +50,47 @@
 ## Marker Genes
 | Dataset | All Marker Genes | Marker Genes in Data |
 | :-----: | :-----------: | :-----------: | 
-|*'PBMC50'*, *'PBMC20'*, *'PBMC10'*, *'PBMC5'*|101|42
-| *'muraro'*    | 365 | 313 |
-|*'segerstolpe'*| 365 | 320 |
-|*'xin'*        | 365 | 321 |
+|'PBMC50', 'PBMC20', 'PBMC10', 'PBMC5'|101|42
+| 'muraro'    | 365 | 313 |
+|'segerstolpe'| 365 | 320 |
+|'xin'        | 365 | 321 |
 
 ## Normalization
 The normalization method in **Seurat**.
 
-## Evaluation
+## Metrics
 - **Number of Marker Genes Found**  
   The number of marker genes which are found in data.
 - **Mean Reciprocal Rank (MRR)**  
   ![1](https://latex.codecogs.com/gif.latex?MRR=\frac{1}{\vert&space;Q&space;\vert}\sum_{i=1}^{\vert&space;Q&space;\vert}\frac{1}{rank_{i}})
 - **Adjusted Rand Index (ARI)**  
-  ARI of two clustering methods: Seurat and SC3.
+  ARI of 2 clustering methods: Seurat and SC3.
 - **F1-score**  
-  F1-score of two classification methods: scmap and singlecellnet.
+  F1-score of 2 classification methods: scmap and singlecellnet (using 5-fold CV).
 ## Example
+### Evaluation
 ```python
 from utils.evaluation import evaluate_classification_methods, evaluate_clustering_methods
 
 evaluate_classification_methods(dataset='xin', methods=['rf', 'lgb', 'xgb', 'nsc', 'cv2', 'var'], data_type='raw')
 evaluate_clustering_methods(dataset='muraro', methods=['cellassign', 'deviance', 'm3drop'], data_type='norm')
 ```
+### Ensemble Gene Selection
+```python
+from utils.ensemble_gene_selection import ensemble_gene_selection
+
+
+ensemble_gene_selection(dataset='xin', base_methods=['rf', 'fisher_score'], task='assign')
+```
 
 
 ## Notes
-1. You can choose which type of data the methods will be implemented on by specifying the parameter *'data_type'*: 'raw' means raw data, 'norm' means normalized data.
-2. Parameter *'methods'* must be a list. If *'methods'* contains 'scGeneFit' and dataset is PBMC, then all the methods will only run on PBMC5. This is because the scGeneFit written by Python is very slow and occupies much system resource when the number of cells is more than 3000.
-3. CV2 may select 0 marker gene and cause IO error.
-4. The parameter *'n_features'* is fixed at 1000.
+1. The ***data*** directory is at the same level as this program.
+2. You can choose which type of data the methods will be implemented on by specifying the parameter ***'data_type'***: 
+   'raw' means raw data, 'norm' means normalized data.
+3. Parameter ***'methods'*** must be a list. If ***'methods'*** contains 'scGeneFit' and dataset is PBMC, then all the 
+   methods will only run on PBMC5. This is because the scGeneFit written by Python is very slow and occupies much system 
+   resource when the number of cells is more than 3000.
+4. Results will be stored in the directory ***results***.
+5. CV2 may select 0 marker gene and cause IO error.
+6. The parameter ***'n_features'*** is fixed at 1000.

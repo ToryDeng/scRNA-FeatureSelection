@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import warnings
+import datetime
 import os
 
 
@@ -165,6 +166,14 @@ def random_choice(X, y, size):
 
 
 def cal_marker_num_MRR(trusted_features, selected_features, rank=True):
+    """
+    Calculate number of selected marker genes and MRR if rank == True.
+
+    :param trusted_features: all marker genes
+    :param selected_features: selected marker genes
+    :param rank: bool. Whether to calculate MRR
+    :return: if rank == True, return marker num and MRR, Otherwise return marker num
+    """
     marker_genes_found = np.intersect1d(trusted_features, selected_features).shape[0]
     if rank:
         rank_list = np.argwhere(np.isin(selected_features, trusted_features))
@@ -181,6 +190,14 @@ def cal_marker_num_MRR(trusted_features, selected_features, rank=True):
 
 
 def PerformanceRecord(methods, task):
+    """
+    Generate a performance record.
+
+    :param methods: the list of gene selection methods
+    :param task: 'assign' or 'clustering'
+    :return: If task == 'assign', return a dataframe with MRR, marker_genes_found and 3 F1-scores.
+    If task == 'clustering', return a dataframe with MRR, marker_genes_found and 2 ARI.
+    """
     if task == 'assign':
         index = ['MRR', 'marker_genes_found', 'scmap_cluster_F1', 'scmap_cell_F1', 'singlecellnet_F1']
     elif task == 'clustering':
@@ -200,3 +217,36 @@ def save_raw_data(X_train=None, X_test=None, y_train=None, y_test=None, task=Non
         X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
         y_train.index = X_train.index
         y_train.to_csv('scRNA-FeatureSelection/tempData/temp_y.csv')
+    else:
+        warnings.warn("function 'save_raw_data' is wrong.", RuntimeWarning)
+
+
+def now():
+    """
+    UTC + 8 hours = Beijing time
+
+    :return: Beijing time in string
+    """
+    return (datetime.datetime.now() + datetime.timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def head(name, head_len=50):
+    """
+    formatted printing
+
+    :param name: head name
+    :param head_len: length of head, including stars
+    :return: None
+    """
+    stars_num = head_len - len(name)
+    if stars_num % 2 == 0:
+        print(''.join(['*' * (stars_num // 2), ' ', name, ' ', '*' * (stars_num // 2)]))
+    else:
+        print(''.join(['*' * (stars_num // 2), ' ', name, ' ', '*' * (stars_num // 2 + 1)]))
+
+
+def plot_result(dataset, data_type):
+    result_path = 'scRNA-FeatureSelection/results/'
+    print(os.getcwd())
+
+

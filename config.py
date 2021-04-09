@@ -9,7 +9,8 @@ class ClassificationConfig:
                            'seurat': 'raw',
                            'deviance': 'raw',
                            'm3drop': 'raw',
-                           'cellassign': 'raw'}
+                           'cellassign': 'raw',
+                           'fisher_score': 'raw'}
 
 
 class ClusteringConfig:

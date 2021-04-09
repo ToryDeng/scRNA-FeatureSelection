@@ -1,6 +1,6 @@
 from sklearn.metrics import adjusted_rand_score, f1_score
 from utils.utils import get_gene_names, load_data, cal_marker_num_MRR, delete, filter_const_cells, PerformanceRecord, \
-    save_raw_data, filter_const_genes
+    save_raw_data, filter_const_genes, now, head
 from utils.importance import select_features
 from sklearn.model_selection import KFold
 import numpy as np
@@ -25,7 +25,7 @@ def evaluate_classification_result():
             f1 = f1_score(np.squeeze(label_test), np.char.strip(label_pred, '"'), average='weighted')
             classification_result[assign_method + '_F1'] = f1
         except IOError:
-            print('{} failed to execute successfully. Please check the R output in console.'.format(assign_method))
+            print('{} failed to execute. Please check the R output in console.'.format(assign_method))
     return classification_result
 
 
@@ -47,7 +47,7 @@ def evaluate_clustering_result():
     return clustering_result
 
 
-def evaluate_classification_methods(dataset, methods, data_type):
+def evaluate_classification_methods(dataset: str, methods: list, data_type: str):
     """
     Evaluate classification methods on specific dataset (raw or norm) using 5-fold cross validation.
     The result is saved in results folder.
@@ -67,7 +67,7 @@ def evaluate_classification_methods(dataset, methods, data_type):
     performance_record = PerformanceRecord(methods=methods, task='assign')
 
     # output dataset information
-    print("*************** Dataset Information ***************")
+    head(name='Dataset Information')
     print("Name:{}  Type:{}  Cell(s):{}  Gene(s):{}\nMarker Gene(s):{}".format(
         dataset, data_type, X_raw.shape[0], X_raw.shape[1],
         np.intersect1d(get_gene_names(X_raw.columns), trusted_markers).shape[0])
@@ -80,9 +80,10 @@ def evaluate_classification_methods(dataset, methods, data_type):
         X_raw_train, X_raw_test = X_raw.iloc[train_idx], X_raw.iloc[test_idx]
         X_norm_train, X_norm_test = X_norm.iloc[train_idx], X_norm.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-        save_raw_data(X_raw_train, X_raw_test, y_train, y_test, task='assign')
+        delete('scRNA-FeatureSelection/tempData/')
 
         # calculate F1-score before feature selection
+        save_raw_data(X_raw_train, X_raw_test, y_train, y_test, task='assign')
         before = evaluate_classification_result()
 
         # remove const genes before feature selection
@@ -95,7 +96,6 @@ def evaluate_classification_methods(dataset, methods, data_type):
             # delete current files in tempData
             delete('scRNA-FeatureSelection/tempData/')
             if data_type == 'raw':
-                print(X_raw_train.shape, y_train.shape)
                 result = select_features(dataset, 1000, method, gene_names, X_raw_train.values,
                                          np.squeeze(y_train.values))
             elif data_type == 'norm':
@@ -132,13 +132,14 @@ def evaluate_classification_methods(dataset, methods, data_type):
             after = evaluate_classification_result()
 
             # update performance record
+            print(before, after)
             for key in after.keys():
                 performance_record.loc[key, method] += after[key] - before[key]
 
     # save performance record
     performance_record.divide(5).to_csv(
         ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_assign_record.csv']))
-    print("Done!")
+    print(now() + ": Evaluation is done!")
 
 
 def evaluate_clustering_methods(dataset, methods, data_type):
@@ -161,12 +162,13 @@ def evaluate_clustering_methods(dataset, methods, data_type):
     performance_record = PerformanceRecord(methods=methods, task='clustering')
 
     # output dataset information
-    print("*************** Dataset Information ***************")
+    head(name='Dataset Information')
     print("Name:{}  Type:{}  Cell(s):{}  Gene(s):{}\nMarker Gene(s):{}".format(
         dataset, data_type, X_raw.shape[0], X_raw.shape[1], np.intersect1d(gene_names, trusted_markers).shape[0])
     )
 
     # save raw data and generate clustering result before feature selection
+    delete('scRNA-FeatureSelection/tempData/')
     save_raw_data(X_train=X_raw, y_train=y, task='clustering')
     before = evaluate_clustering_result()
 
@@ -180,7 +182,6 @@ def evaluate_clustering_methods(dataset, methods, data_type):
             warnings.warn("The parameter 'data_type' is wrong. Please check again.", RuntimeWarning)
             return None
         result = select_features(dataset, 1000, method, gene_names, X=X.values, y=np.squeeze(y.values))  # consistency
-        print(result)
         if len(result) == 2:  # method can generate feature importance
             markers_found, MRR = cal_marker_num_MRR(trusted_markers, result[0], rank=True)
             performance_record.loc['marker_genes_found', method] = markers_found
@@ -204,10 +205,11 @@ def evaluate_clustering_methods(dataset, methods, data_type):
         after = evaluate_clustering_result()
 
         # update performance record
+        print(before, after)
         for key in after.keys():
             performance_record.loc[key, method] = after[key] - before[key]
 
     # save performance record
     performance_record.to_csv(
         ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_clustering_record.csv']))
-    print("Done!")
+    print(now() + ": Evaluation is done!")

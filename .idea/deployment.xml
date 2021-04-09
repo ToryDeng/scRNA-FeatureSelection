@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="tdeng@52.83.218.83:22 key">
+  <component name="PublishConfigData" autoUpload="Always">
     <serverData>
-      <paths name="tdeng@52.83.218.83:22 key">
+      <paths name="scRNA-FeatureSelection">
         <serverdata>
           <mappings>
             <mapping deploy="/" local="$PROJECT_DIR$" web="/" />
