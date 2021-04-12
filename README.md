@@ -24,7 +24,7 @@
 | Variance    | ✔ | ✔ | Python | - |
 | CV2         | ✔ | ✔ | Python | - |
 | Nearest Shrunken Centroid | ✔ | ❌ | Python | [1] |
-| Seurat       | ✔ | ✔ | R | [2] |
+| Seurat       | ✔ | ✔ | Python | [2] |
 | Deviance     | ✔ | ✔ | R | [3] |
 | M3Drop       | ✔ | ✔ | R | [4] |
 | CellAssign   | ✔ | ❌ | R | [5] |
@@ -74,8 +74,8 @@ The normalization method in **Seurat**.
 ```python
 from utils.evaluation import evaluate_classification_methods, evaluate_clustering_methods
 
-evaluate_classification_methods(dataset='xin', methods=['rf', 'xgb', 'nsc', 'cv2', 'var'], data_type='raw')
-evaluate_clustering_methods(dataset='muraro', methods=['cellassign', 'deviance', 'm3drop'], data_type='norm')
+evaluate_classification_methods(dataset='xin', methods=['rf', 'xgb', 'nsc', 'var'], data_type='raw')
+evaluate_clustering_methods(dataset='muraro', methods=['cellassign', 'deviance'], data_type='norm')
 ```
 ### Ensemble Gene Selection
 ```python
