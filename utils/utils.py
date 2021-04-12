@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import warnings
 import datetime
 import os
@@ -7,7 +8,7 @@ import os
 
 def filter_const_genes(X):
     """
-    Remove constant genes.
+    Remove zero count genes.
 
     :param X: Count matrix in  dataframe format (row:cell, col:gene)
     :return: Filtered count matrix
@@ -18,12 +19,21 @@ def filter_const_genes(X):
 
 
 def filter_const_cells(X, y):
+    """
+    Remove zero count cells.
+
+    :param X: count matrix
+    :param y: cell types
+    :return: filtered count matrix and cell types
+    """
+    if X.shape[0] != y.shape[0]:
+        warnings.warn("Inconsistency between X and y in dim 0.", RuntimeWarning)
     mask = X.sum(axis=1) != 0
     print("Removed {} cell(s).".format(X.shape[0] - mask.sum()))
     return X.loc[mask, :], y[mask.values]
 
 
-def load_data(data_name, scale_factor=1e4):
+def load_data(data_name: str, scale_factor=1e4):
     """
     For specific data_name, get the corresponding raw data. Remove constant genes (=0) and normalize it
     using the method in Seurat.
@@ -114,7 +124,7 @@ def get_gene_names(columns):
     return gene_names
 
 
-def delete(path):
+def delete(path: str):
     """
     Recursively delete files in a temporary folder if 'path' is a dir, or delete the file when 'path'
     is a file path.
@@ -135,7 +145,7 @@ def delete(path):
         os.remove(path)
 
 
-def PBMC_sample_to_csv(fraction):
+def PBMC_sample_to_csv(fraction: float):
     """
     Randomly sample some cells and save as csv file from PBMC dataset.
 
@@ -207,7 +217,18 @@ def PerformanceRecord(methods, task):
     return pd.DataFrame(data=np.zeros((len(index), len(methods))), index=index, columns=methods)
 
 
-def save_raw_data(X_train=None, X_test=None, y_train=None, y_test=None, task=None):
+def save_raw_data(X_train, X_test, y_train, y_test, task: str):
+    """
+    Save raw data for classification task and clustering task in tempData dir.
+
+    :param X_train: count matrix of training cells when task == 'assign',
+     or count matrix of all cells when task == 'clustering'.
+    :param X_test: count matrix of test cells
+    :param y_train: types of training cells when task == 'assign' or types of  all cells when task == 'clustering'.
+    :param y_test: types of test cells
+    :param task:
+    :return: None
+    """
     if task == 'assign':
         X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X_train.csv')
         X_test.to_csv('scRNA-FeatureSelection/tempData/temp_X_test.csv')
@@ -230,7 +251,7 @@ def now():
     return (datetime.datetime.now() + datetime.timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def head(name, head_len=50):
+def head(name: str, head_len=50):
     """
     formatted printing
 
@@ -245,8 +266,31 @@ def head(name, head_len=50):
         print(''.join(['*' * (stars_num // 2), ' ', name, ' ', '*' * (stars_num // 2 + 1)]))
 
 
-def plot_result(dataset, data_type):
+def plot_result(dataset: str, data_type: str, task: str):
+    """
+    Visualize results.
+
+    :param dataset: dataset name
+    :param data_type: 'norm' or 'raw'
+    :param task: 'assign' or 'clustering'
+    :return: None
+    """
     result_path = 'scRNA-FeatureSelection/results/'
-    print(os.getcwd())
+    result = pd.read_csv(result_path + '_'.join([dataset, data_type, task, 'record.csv']), index_col=0)
 
+    result[result.index.str.contains('F1') | result.index.str.contains('ARI')] *= 100
 
+    fig, axes = plt.subplots(result.shape[0], 1, figsize=(6, result.shape[0] * 3))
+    for i in range(result.shape[0]):
+        if 'F1' in result.iloc[i, :].name or 'ARI' in result.iloc[i, :].name:
+            axes[i].set_yscale('symlog')
+            axes[i].axhline(0)
+            axes[i].set_title(result.index[i] + '(%)')
+        else:
+            axes[i].set_title(result.index[i])
+        result.iloc[i, :].plot(kind='bar', ax=axes[i], rot=15,
+                               color=['grey', 'gold', 'darkviolet', 'turquoise', 'khaki', 'r', 'g', 'b', 'c', 'm', 'y',
+                                      'k', 'darkorange', 'lightgreen', 'plum', 'tan', 'pink', 'skyblue', 'lawngreen',
+                                      'salmon'])
+    plt.tight_layout()
+    plt.savefig('_'.join([dataset, data_type, task, 'graph.jpg']), dpi=150, bbox_inches='tight')

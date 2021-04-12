@@ -94,6 +94,16 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_deviance.csv'
         gene_and_importance = np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0, 1], skiprows=1)
         return get_gene_names(gene_and_importance[:, 0]), gene_and_importance[:, 1].astype(np.float)
+    elif method == 'monocle3':
+        os.system("Rscript scRNA-FeatureSelection/utils/RCode/monocle3.R " + data_name)
+        gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_monocle3.csv'
+        gene_and_importance = pd.read_csv(gene_path, usecols=['gene_id', 'pseudo_R2']).values
+        selected_genes_num = gene_and_importance.shape[0]
+        print(f'Monocle3 selected {selected_genes_num} marker genes.')
+        if selected_genes_num > feature_num:
+            return get_gene_names(gene_and_importance[:feature_num, 0]), gene_and_importance[:feature_num, 1].astype(np.float)
+        else:
+            return get_gene_names(gene_and_importance[:, 0]), gene_and_importance[:, 1]
     elif method == 'scGeneFit':
         le = LabelEncoder()
         y_encoded = le.fit_transform(y)

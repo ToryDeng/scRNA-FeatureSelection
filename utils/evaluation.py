@@ -2,6 +2,7 @@ from sklearn.metrics import adjusted_rand_score, f1_score
 from utils.utils import get_gene_names, load_data, cal_marker_num_MRR, delete, filter_const_cells, PerformanceRecord, \
     save_raw_data, filter_const_genes, now, head
 from utils.importance import select_features
+from config import classification_cfg, clustering_cfg
 from sklearn.model_selection import KFold
 import numpy as np
 import warnings
@@ -76,25 +77,29 @@ def evaluate_classification_methods(dataset: str, methods: list, data_type: str)
     # 5-fold CV
     kf = KFold(n_splits=5, random_state=2020, shuffle=True)
     for train_idx, test_idx in kf.split(X_raw):
-        # split and save raw data
+        # clean directory
+        delete('scRNA-FeatureSelection/tempData/')
+
+        # split raw X_raw, X_norm and y
         X_raw_train, X_raw_test = X_raw.iloc[train_idx], X_raw.iloc[test_idx]
         X_norm_train, X_norm_test = X_norm.iloc[train_idx], X_norm.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-        delete('scRNA-FeatureSelection/tempData/')
-
-        # calculate F1-score before feature selection
-        save_raw_data(X_raw_train, X_raw_test, y_train, y_test, task='assign')
-        before = evaluate_classification_result()
 
         # remove const genes before feature selection
         X_raw_train, X_norm_train = filter_const_genes(X_raw_train), filter_const_genes(X_norm_train)
         X_raw_test, X_norm_test = X_raw_test.loc[:, X_raw_train.columns], X_norm_test.loc[:, X_norm_train.columns]
         gene_names = get_gene_names(X_raw_train.columns)
 
+        # calculate F1-score before feature selection
+        save_raw_data(X_raw_train, X_raw_test, y_train, y_test, task='assign')
+        before = evaluate_classification_result()
+
         # feature selection
         for method in methods:
-            # delete current files in tempData
+            # delete current files in tempData dir
             delete('scRNA-FeatureSelection/tempData/')
+            if classification_cfg.method_lan[method] == 'r':
+                save_raw_data(X_raw_train, X_raw_test, y_train, y_test, task='assign')
             if data_type == 'raw':
                 result = select_features(dataset, 1000, method, gene_names, X_raw_train.values,
                                          np.squeeze(y_train.values))
@@ -138,7 +143,7 @@ def evaluate_classification_methods(dataset: str, methods: list, data_type: str)
 
     # save performance record
     performance_record.divide(5).to_csv(
-        ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_assign_record.csv']))
+        ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_assign.csv']))
     print(now() + ": Evaluation is done!")
 
 
@@ -174,6 +179,8 @@ def evaluate_clustering_methods(dataset, methods, data_type):
 
     for method in methods:
         delete('scRNA-FeatureSelection/tempData/')
+        if clustering_cfg.method_lan[method] == 'r':
+            save_raw_data(X_train=X_raw, y_train=y, task='clustering')
         if data_type == 'raw':
             X = X_raw
         elif data_type == 'norm':
@@ -199,9 +206,9 @@ def evaluate_clustering_methods(dataset, methods, data_type):
         if mask.sum() == 0:
             warnings.warn("No gene is selected!", RuntimeWarning)
         # filter out non-markers
-        X_selected, y = filter_const_cells(X_raw.loc[:, mask], y)
+        X_selected, y_selected = filter_const_cells(X_raw.loc[:, mask], y)
         # save raw data and generate clustering result before feature selection
-        save_raw_data(X_train=X_selected, y_train=y, task='clustering')
+        save_raw_data(X_train=X_selected, y_train=y_selected, task='clustering')
         after = evaluate_clustering_result()
 
         # update performance record
@@ -211,5 +218,5 @@ def evaluate_clustering_methods(dataset, methods, data_type):
 
     # save performance record
     performance_record.to_csv(
-        ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_clustering_record.csv']))
+        ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_clustering.csv']))
     print(now() + ": Evaluation is done!")

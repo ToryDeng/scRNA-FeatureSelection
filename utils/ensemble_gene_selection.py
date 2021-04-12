@@ -9,15 +9,17 @@ import pandas as pd
 import numpy as np
 
 
-def integrateResults(dataset, base_methods, gene_names, X_raw, X_norm, y, config):
+def integrateResults(dataset: str, base_methods: list, gene_names, X_raw, X_norm, y, config):
     gene_importance_dict = defaultdict(int)
     for method in base_methods:
         # delete current files in tempData
         delete('scRNA-FeatureSelection/tempData/')
-        if config.methods_on[method] == 'raw':
+        if config.method_on[method] == 'raw':
+            save_raw_data(X_train=X_raw, y_train=y, task='clustering')  # just for consistency
             genes, importances = select_features(dataset, 1000, method, gene_names, X_raw.values,
                                                  np.squeeze(y.values))
-        else:
+        else:  # norm data
+            save_raw_data(X_train=X_norm, y_train=y, task='clustering')  # just for consistency
             genes, importances = select_features(dataset, 1000, method, gene_names, X_norm.values,
                                                  np.squeeze(y.values))
         importances = (importances - np.min(importances)) / (np.max(importances) - np.min(importances))  # Normalization
@@ -64,6 +66,7 @@ def ensemble_gene_selection(dataset: str, base_methods: list, task: str):
             # integrate feature selection results from training set
             sorted_result = integrateResults(dataset, base_methods, gene_names, X_raw_train, X_norm_train, y_train, cfg)
             mask = np.isin(gene_names, sorted_result[0])
+
             # calculate and store markers_found & MRR
             markers_found, MRR = cal_marker_num_MRR(trusted_markers, sorted_result[0], rank=True)
             performance_record.loc['marker_genes_found', ensemble_method_name] += markers_found
@@ -101,10 +104,10 @@ def ensemble_gene_selection(dataset: str, base_methods: list, task: str):
         performance_record.loc['MRR', ensemble_method_name] = MRR
 
         # filter out non-markers
-        X_selected, y = filter_const_cells(X_raw.loc[:, mask], y)
+        X_selected, y_selected = filter_const_cells(X_raw.loc[:, mask], y)
 
         # save raw data and generate clustering result before feature selection
-        save_raw_data(X_train=X_selected, y_train=y, task='clustering')
+        save_raw_data(X_train=X_selected, y_train=y_selected, task='clustering')
         after = evaluate_clustering_result()
 
         # update performance record
