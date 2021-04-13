@@ -3,7 +3,13 @@
   <component name="RemoteMappingsManager">
     <list>
       <list>
-        <remote-mappings server-id="python@sftp://tdeng@52.83.218.83:22/usr/local/bin/python" />
+        <remote-mappings server-id="python@sftp://tdeng@52.83.218.83:22/usr/local/bin/python">
+          <settings>
+            <list>
+              <mapping local-root="$PROJECT_DIR$" remote-root="/home/tdeng/SingleCell/scRNA-FeatureSelection" />
+            </list>
+          </settings>
+        </remote-mappings>
       </list>
     </list>
   </component>

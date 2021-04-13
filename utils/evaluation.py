@@ -3,7 +3,7 @@ from utils.utils import get_gene_names, load_data, cal_marker_num_MRR, delete, f
     save_raw_data, filter_const_genes, now, head
 from utils.importance import select_features
 from config import classification_cfg, clustering_cfg
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import warnings
 import os
@@ -75,8 +75,8 @@ def evaluate_classification_methods(dataset: str, methods: list, data_type: str)
     )
 
     # 5-fold CV
-    kf = KFold(n_splits=5, random_state=2020, shuffle=True)
-    for train_idx, test_idx in kf.split(X_raw):
+    skf = StratifiedKFold(n_splits=5, random_state=2020, shuffle=True)
+    for train_idx, test_idx in skf.split(X_raw, y):
         # clean directory
         delete('scRNA-FeatureSelection/tempData/')
 

@@ -4,7 +4,7 @@ from utils.evaluation import evaluate_classification_result, evaluate_clustering
 from utils.importance import select_features
 from config import ClassificationConfig, ClusteringConfig
 from collections import defaultdict
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 import pandas as pd
 import numpy as np
 
@@ -15,11 +15,11 @@ def integrateResults(dataset: str, base_methods: list, gene_names, X_raw, X_norm
         # delete current files in tempData
         delete('scRNA-FeatureSelection/tempData/')
         if config.method_on[method] == 'raw':
-            save_raw_data(X_train=X_raw, y_train=y, task='clustering')  # just for consistency
+            save_raw_data(X_train=X_raw, X_test=None, y_train=y, y_test=None, task='clustering')  # for consistency
             genes, importances = select_features(dataset, 1000, method, gene_names, X_raw.values,
                                                  np.squeeze(y.values))
         else:  # norm data
-            save_raw_data(X_train=X_norm, y_train=y, task='clustering')  # just for consistency
+            save_raw_data(X_train=X_norm, X_test=None, y_train=y, y_test=None, task='clustering')  # for consistency
             genes, importances = select_features(dataset, 1000, method, gene_names, X_norm.values,
                                                  np.squeeze(y.values))
         importances = (importances - np.min(importances)) / (np.max(importances) - np.min(importances))  # Normalization
@@ -46,8 +46,8 @@ def ensemble_gene_selection(dataset: str, base_methods: list, task: str):
 
     if task == 'assign':
         cfg = ClassificationConfig()
-        kf = KFold(n_splits=5, random_state=2020, shuffle=True)
-        for train_idx, test_idx in kf.split(X_raw):
+        skf = StratifiedKFold(n_splits=5, random_state=2020, shuffle=True)
+        for train_idx, test_idx in skf.split(X_raw, y):
             X_raw_train, X_raw_test = X_raw.iloc[train_idx], X_raw.iloc[test_idx]
             X_norm_train, X_norm_test = X_norm.iloc[train_idx], X_norm.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
@@ -90,7 +90,7 @@ def ensemble_gene_selection(dataset: str, base_methods: list, task: str):
             ''.join(['scRNA-FeatureSelection/results/', dataset, '_', ensemble_method_name, '_assign.csv']))
     elif task == 'clustering':
         # save raw data and generate clustering result before feature selection
-        save_raw_data(X_train=X_raw, y_train=y, task='clustering')
+        save_raw_data(X_train=X_raw, X_test=None, y_train=y, y_test=None, task='clustering')
         before = evaluate_clustering_result()
         cfg = ClusteringConfig()
 
@@ -107,7 +107,7 @@ def ensemble_gene_selection(dataset: str, base_methods: list, task: str):
         X_selected, y_selected = filter_const_cells(X_raw.loc[:, mask], y)
 
         # save raw data and generate clustering result before feature selection
-        save_raw_data(X_train=X_selected, y_train=y_selected, task='clustering')
+        save_raw_data(X_train=X_selected, X_test=None, y_train=y_selected, y_test=None, task='clustering')
         after = evaluate_clustering_result()
 
         # update performance record

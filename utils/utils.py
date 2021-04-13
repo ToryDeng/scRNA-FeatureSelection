@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+from sklearn.model_selection import train_test_split
+from config import data_cfg
 import warnings
 import datetime
 import os
@@ -26,11 +29,28 @@ def filter_const_cells(X, y):
     :param y: cell types
     :return: filtered count matrix and cell types
     """
-    if X.shape[0] != y.shape[0]:
-        warnings.warn("Inconsistency between X and y in dim 0.", RuntimeWarning)
+    assert X.shape[0] == y.shape[0], "Inconsistency between X and y in dim 0."
     mask = X.sum(axis=1) != 0
     print("Removed {} cell(s).".format(X.shape[0] - mask.sum()))
     return X.loc[mask, :], y[mask.values]
+
+
+def polish(df, dataset: str):
+    """
+    For PBMC dataset, simplify the gene names. For pancreas dataset, filter cells.
+
+    :param df: the original dataframe
+    :param dataset: dataset name
+    :return: the polished dataframe
+    """
+    if dataset == 'PBMC':
+        df.columns.name = ''
+        df.columns = pd.Series(df.columns).str.split('\t', expand=True).iloc[:, 1].values
+        return df
+    elif dataset == 'pancreas':
+        # which cells should be kept
+        is_clear = ~df['label'].isin(data_cfg.remove_types).values
+        return df.loc[is_clear]
 
 
 def load_data(data_name: str, scale_factor=1e4):
@@ -43,25 +63,26 @@ def load_data(data_name: str, scale_factor=1e4):
     :return: raw_features, norm_features, labels, markers
     """
     if data_name[:4] == 'PBMC':
-        os.chdir('/home/tdeng/SingleCell/data/PBMC/integrated data')
+        assert len(data_name) >= 4, "parameter 'data_name' is wrong!"
         if len(data_name) == 4:
-            data = pd.read_hdf('PBMC_AllCells_withLables.h5', key='AllCells')
+            data = pd.read_hdf(data_cfg.PBMC_path, key='AllCells')
+            data = polish(data, dataset='PBMC')
             raw_features, labels = data.iloc[:, :-1], data.iloc[:, -1]
-        elif len(data_name) > 4:
-            raw_features = pd.read_csv('raw_features_sample' + data_name[4:] + '.csv', index_col=0)
-            labels = pd.read_csv('raw_labels_sample' + data_name[4:] + '.csv', usecols=[1])
         else:
-            print("parameter 'data_name' is wrong!")
-            return None
-        os.chdir('../')
+            rate = float(data_name[4:])
+            assert 0 < rate < 100, "The percentage is wrong!"
+            data = pd.read_hdf(data_cfg.PBMC_path, key='AllCells')
+            data = polish(data, dataset='PBMC')
+            X, y = data.iloc[:, :-1], data.iloc[:, -1]
+            _, raw_features, __, labels = train_test_split(X, y, test_size=rate / 100, random_state=2020, stratify=y)
+        os.chdir('/home/tdeng/SingleCell/data/PBMC/')
         part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.object, delimiter=',')
         part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.object, delimiter=',')
         markers = np.union1d(part1, part2)
     elif data_name in ['muraro', 'segerstolpe', 'xin']:
-        os.chdir('/home/tdeng/SingleCell/data/pancreas/separated data')
-        raw_features = pd.read_csv(data_name.capitalize() + '_pancreas_filtered.csv', index_col=0)
-        labels = pd.read_csv(data_name.capitalize() + '_trueID_filtered.csv', usecols=[1])
-        os.chdir('../')
+        data = polish(pd.read_hdf(data_cfg.pancreas_path, key=data_name.capitalize() + '_pancreas'), dataset='pancreas')
+        raw_features, labels = data.iloc[:, :-1], data.iloc[:, -1]
+        os.chdir('/home/tdeng/SingleCell/data/pancreas/')
         markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.object, delimiter=',')
     elif data_name == 'all_pancreas':
         os.chdir('/home/tdeng/SingleCell/data/pancreas/integrated data')
@@ -75,7 +96,7 @@ def load_data(data_name: str, scale_factor=1e4):
     raw_features = filter_const_genes(raw_features)
     raw_features, labels = filter_const_cells(X=raw_features, y=labels)
     norm_features = np.log1p(raw_features / raw_features.sum(1).values.reshape(raw_features.shape[0], 1) * scale_factor)
-    os.chdir("../..")
+    os.chdir("../..") # return to SingleCell dir
     return raw_features, norm_features, labels, markers
 
 
@@ -199,7 +220,7 @@ def cal_marker_num_MRR(trusted_features, selected_features, rank=True):
         return marker_genes_found
 
 
-def PerformanceRecord(methods, task):
+def PerformanceRecord(methods: list, task: str):
     """
     Generate a performance record.
 
@@ -208,6 +229,8 @@ def PerformanceRecord(methods, task):
     :return: If task == 'assign', return a dataframe with MRR, marker_genes_found and 3 F1-scores.
     If task == 'clustering', return a dataframe with MRR, marker_genes_found and 2 ARI.
     """
+    assert len(methods) == 0, "methods list is null."
+    assert task in ['assign', 'clustering'], "Parameter 'task' is wrong."
     if task == 'assign':
         index = ['MRR', 'marker_genes_found', 'scmap_cluster_F1', 'scmap_cell_F1', 'singlecellnet_F1']
     elif task == 'clustering':
@@ -229,6 +252,7 @@ def save_raw_data(X_train, X_test, y_train, y_test, task: str):
     :param task:
     :return: None
     """
+    assert (task in ['assign', 'clustering']), "Parameter 'task' is wrong."
     if task == 'assign':
         X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X_train.csv')
         X_test.to_csv('scRNA-FeatureSelection/tempData/temp_X_test.csv')
@@ -238,8 +262,6 @@ def save_raw_data(X_train, X_test, y_train, y_test, task: str):
         X_train.to_csv('scRNA-FeatureSelection/tempData/temp_X.csv')
         y_train.index = X_train.index
         y_train.to_csv('scRNA-FeatureSelection/tempData/temp_y.csv')
-    else:
-        warnings.warn("function 'save_raw_data' is wrong.", RuntimeWarning)
 
 
 def now():
@@ -260,13 +282,14 @@ def head(name: str, head_len=50):
     :return: None
     """
     stars_num = head_len - len(name)
+    assert stars_num <= 0, "name is too long."
     if stars_num % 2 == 0:
         print(''.join(['*' * (stars_num // 2), ' ', name, ' ', '*' * (stars_num // 2)]))
     else:
         print(''.join(['*' * (stars_num // 2), ' ', name, ' ', '*' * (stars_num // 2 + 1)]))
 
 
-def plot_result(dataset: str, data_type: str, task: str):
+def plot_result(dataset: str, data_type: str, task: str, save=False):
     """
     Visualize results.
 
@@ -275,6 +298,8 @@ def plot_result(dataset: str, data_type: str, task: str):
     :param task: 'assign' or 'clustering'
     :return: None
     """
+    assert (data_type in ['norm', 'raw']), "Parameter 'data_type' is wrong."
+    assert (task in ['assign', 'clustering']), "Parameter 'task' is wrong."
     result_path = 'scRNA-FeatureSelection/results/'
     result = pd.read_csv(result_path + '_'.join([dataset, data_type, task, 'record.csv']), index_col=0)
 
@@ -288,9 +313,11 @@ def plot_result(dataset: str, data_type: str, task: str):
             axes[i].set_title(result.index[i] + '(%)')
         else:
             axes[i].set_title(result.index[i])
-        result.iloc[i, :].plot(kind='bar', ax=axes[i], rot=15,
-                               color=['grey', 'gold', 'darkviolet', 'turquoise', 'khaki', 'r', 'g', 'b', 'c', 'm', 'y',
-                                      'k', 'darkorange', 'lightgreen', 'plum', 'tan', 'pink', 'skyblue', 'lawngreen',
-                                      'salmon'])
+        cmap = mpl.cm.get_cmap('Set1', result.shape[1])
+        colors = cmap(np.linspace(0, 1, result.shape[1]))
+        result.iloc[i, :].plot(kind='bar', ax=axes[i], rot=15, color=colors)
     plt.tight_layout()
-    plt.savefig('_'.join([dataset, data_type, task, 'graph.jpg']), dpi=150, bbox_inches='tight')
+
+    if save:
+        plt.savefig(result_path + '_'.join([dataset, data_type, task, 'graph.jpg']), dpi=150, bbox_inches='tight')
+    plt.show()

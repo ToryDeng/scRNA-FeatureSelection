@@ -52,4 +52,15 @@ class ClusteringConfig:
         }
 
 
-classification_cfg, clustering_cfg = ClassificationConfig(), ClusteringConfig()
+class DataConfig:
+    def __init__(self):
+        # PBMC
+        self.PBMC_path = "/volume/scRNA/python_data/PBMC_AllCells_withLabels.h5"
+
+        # pancreas
+        self.pancreas_path = "/volume/scRNA/python_data/pancreas.h5"
+        self.remove_types = ['unclear', 'not applicable', 'unclassified', 'co-expression', 'beta.contaminated',
+                             'alpha.contaminated', 'delta.contaminated', 'gamma.contaminated', 'unassigned']
+
+
+classification_cfg, clustering_cfg, data_cfg = ClassificationConfig(), ClusteringConfig(), DataConfig()
