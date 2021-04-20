@@ -9,7 +9,7 @@ import datetime
 import os
 
 
-def filter_const_genes(X):
+def filter_const_genes(X) -> pd.DataFrame:
     """
     Remove zero count genes.
 
@@ -45,12 +45,12 @@ def polish(df, dataset: str):
     """
     if dataset == 'PBMC':
         df.columns.name = ''
-        df.columns = pd.Series(df.columns).str.split('\t', expand=True).iloc[:, 1].values
+        names = get_gene_names(df.columns).tolist()  # may have duplicated names
+        df.columns = [v + '-' + str(names[:i].count(v) + 1) if names.count(v) > 1 else v for i, v in enumerate(names)]
         return df
     elif dataset == 'pancreas':
         # which cells should be kept
-        is_clear = ~df['label'].isin(data_cfg.remove_types).values
-        return df.loc[is_clear]
+        return df.loc[~df['label'].isin(data_cfg.remove_types).values]
 
 
 def load_data(data_name: str, scale_factor=1e4):
@@ -64,39 +64,38 @@ def load_data(data_name: str, scale_factor=1e4):
     """
     if data_name[:4] == 'PBMC':
         assert len(data_name) >= 4, "parameter 'data_name' is wrong!"
+        data = pd.read_hdf(data_cfg.PBMC_path, key='AllCells').reset_index(drop=True)
         if len(data_name) == 4:
-            data = pd.read_hdf(data_cfg.PBMC_path, key='AllCells')
             data = polish(data, dataset='PBMC')
             raw_features, labels = data.iloc[:, :-1], data.iloc[:, -1]
         else:
             rate = float(data_name[4:])
             assert 0 < rate < 100, "The percentage is wrong!"
-            data = pd.read_hdf(data_cfg.PBMC_path, key='AllCells')
             data = polish(data, dataset='PBMC')
             X, y = data.iloc[:, :-1], data.iloc[:, -1]
             _, raw_features, __, labels = train_test_split(X, y, test_size=rate / 100, random_state=2020, stratify=y)
         os.chdir('/home/tdeng/SingleCell/data/PBMC/')
-        part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.object, delimiter=',')
-        part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.object, delimiter=',')
+        part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.object_, delimiter=',')
+        part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.object_, delimiter=',')
         markers = np.union1d(part1, part2)
     elif data_name in ['muraro', 'segerstolpe', 'xin']:
         data = polish(pd.read_hdf(data_cfg.pancreas_path, key=data_name.capitalize() + '_pancreas'), dataset='pancreas')
         raw_features, labels = data.iloc[:, :-1], data.iloc[:, -1]
         os.chdir('/home/tdeng/SingleCell/data/pancreas/')
-        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.object, delimiter=',')
+        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.object_, delimiter=',')
     elif data_name == 'all_pancreas':
         os.chdir('/home/tdeng/SingleCell/data/pancreas/integrated data')
         raw_features = pd.read_csv('features.csv', index_col=0)
         labels = pd.read_csv('labels.csv', usecols=[1])
         os.chdir('../')
-        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.object, delimiter=',')
+        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.object_, delimiter=',')
     else:
         print("parameter 'data_name' is wrong!")
         return None
-    raw_features = filter_const_genes(raw_features)
+    raw_features = filter_const_genes(raw_features).round()
     raw_features, labels = filter_const_cells(X=raw_features, y=labels)
     norm_features = np.log1p(raw_features / raw_features.sum(1).values.reshape(raw_features.shape[0], 1) * scale_factor)
-    os.chdir("../..") # return to SingleCell dir
+    os.chdir("../..")  # return to SingleCell dir
     return raw_features, norm_features, labels, markers
 
 
@@ -134,14 +133,14 @@ def get_gene_names(columns):
     if '__' in columns[0] and columns[0][0] != '"' and columns[0][-1] != '"':
         gene_names = pd.Series(columns).str.split('__', expand=True).iloc[:, 0].values
     elif '__' not in columns[0] and columns[0][0] == '"' and columns[0][-1] == '"':
-        gene_names = np.char.strip(np.array(columns, dtype=np.str), '"')
+        gene_names = np.char.strip(np.array(columns, dtype=np.str_), '"')
     elif '__' in columns[0] and columns[0][0] == '"' and columns[0][-1] == '"':
-        gene_names = np.char.strip(np.array(columns, dtype=np.str), '"')
+        gene_names = np.char.strip(np.array(columns, dtype=np.str_), '"')
         gene_names = pd.Series(gene_names).str.split('__', expand=True).iloc[:, 0].values
     elif '\t' in columns[0]:
         gene_names = pd.Series(columns).str.split('\t', expand=True).iloc[:, 1].values
     else:
-        gene_names = np.array(columns, dtype=np.str)
+        gene_names = np.array(columns, dtype=np.str_)
     return gene_names
 
 
@@ -229,7 +228,7 @@ def PerformanceRecord(methods: list, task: str):
     :return: If task == 'assign', return a dataframe with MRR, marker_genes_found and 3 F1-scores.
     If task == 'clustering', return a dataframe with MRR, marker_genes_found and 2 ARI.
     """
-    assert len(methods) == 0, "methods list is null."
+    assert len(methods) > 0, "methods list is null."
     assert task in ['assign', 'clustering'], "Parameter 'task' is wrong."
     if task == 'assign':
         index = ['MRR', 'marker_genes_found', 'scmap_cluster_F1', 'scmap_cell_F1', 'singlecellnet_F1']
@@ -282,7 +281,7 @@ def head(name: str, head_len=50):
     :return: None
     """
     stars_num = head_len - len(name)
-    assert stars_num <= 0, "name is too long."
+    assert stars_num > 0, "name is too long."
     if stars_num % 2 == 0:
         print(''.join(['*' * (stars_num // 2), ' ', name, ' ', '*' * (stars_num // 2)]))
     else:
@@ -296,11 +295,12 @@ def plot_result(dataset: str, data_type: str, task: str, save=False):
     :param dataset: dataset name
     :param data_type: 'norm' or 'raw'
     :param task: 'assign' or 'clustering'
+    :param save: whether to save figure
     :return: None
     """
     assert (data_type in ['norm', 'raw']), "Parameter 'data_type' is wrong."
     assert (task in ['assign', 'clustering']), "Parameter 'task' is wrong."
-    result_path = 'scRNA-FeatureSelection/results/'
+    result_path = 'scRNA-FeatureSelection/results/plot'
     result = pd.read_csv(result_path + '_'.join([dataset, data_type, task, 'record.csv']), index_col=0)
 
     result[result.index.str.contains('F1') | result.index.str.contains('ARI')] *= 100

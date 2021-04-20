@@ -9,7 +9,19 @@ import pandas as pd
 import numpy as np
 
 
-def integrateResults(dataset: str, base_methods: list, gene_names, X_raw, X_norm, y, config):
+def integrateResults(dataset: str, base_methods: list, gene_names, X_raw, X_norm, y, config) -> np.array:
+    """
+    Integrate results of each method in 'base_methods' list and generate top-1000 genes.
+
+    :param dataset: string, data name
+    :param base_methods: list of string, names of feature selection methods
+    :param gene_names: names of genes
+    :param X_raw: raw count matrix
+    :param X_norm: norm count matrix
+    :param y: labels
+    :param config: configuration
+    :return: the first row contains names of the top-1000 genes, and the second row contains importance
+    """
     gene_importance_dict = defaultdict(int)
     for method in base_methods:
         # delete current files in tempData
@@ -30,7 +42,15 @@ def integrateResults(dataset: str, base_methods: list, gene_names, X_raw, X_norm
     return sorted_result
 
 
-def ensemble_gene_selection(dataset: str, base_methods: list, task: str):
+def ensemble_gene_selection(dataset: str, base_methods: list, task: str) -> pd.DataFrame:
+    """
+    Ensemble gene selection function.
+
+    :param dataset: string, data name
+    :param base_methods: list of string, names of feature selection methods
+    :param task: 'assign' or 'clustering'
+    :return: the final evaluation result
+    """
     # loading data
     X_raw, X_norm, y, trusted_markers = load_data(dataset)
     gene_names = get_gene_names(X_raw.columns)
@@ -118,3 +138,4 @@ def ensemble_gene_selection(dataset: str, base_methods: list, task: str):
         performance_record.to_csv(
             ''.join(['scRNA-FeatureSelection/results/', dataset, '_', ensemble_method_name,  '_clustering.csv']))
     print(now() + ": Evaluation is done!")
+    return performance_record

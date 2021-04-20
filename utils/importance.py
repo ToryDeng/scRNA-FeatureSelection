@@ -63,6 +63,7 @@ def select_features(data_name, feature_num, method, all_features, X, y):
         return most_important_genes(xgb.feature_importances_, feature_num, all_features)
     elif method == 'seurat':
         mean, var = X.mean(axis=0), X.var(axis=0)
+        mean[mean < 1e-9], var[var < 1e-9] = 1e-9, 1e-9
         mean_fit, var_fit, weights = loess_1d(np.log10(mean), np.log10(var), frac=0.3, degree=2)
         z = (X - mean) / (10 ** (var_fit / 2))
         z[z > X.shape[0] ** 0.5] = X.shape[0] ** 0.5
@@ -92,8 +93,8 @@ def select_features(data_name, feature_num, method, all_features, X, y):
     elif method == 'deviance':
         os.system("Rscript scRNA-FeatureSelection/utils/RCode/Deviance.R " + data_name)
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_deviance.csv'
-        gene_and_importance = np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0, 1], skiprows=1)
-        return get_gene_names(gene_and_importance[:, 0]), gene_and_importance[:, 1].astype(np.float)
+        gene_and_importance = np.loadtxt(gene_path, dtype=np.object_, delimiter=',', usecols=[0, 1], skiprows=1)
+        return get_gene_names(gene_and_importance[:, 0]), gene_and_importance[:, 1].astype(np.float_)
     elif method == 'monocle3':
         os.system("Rscript scRNA-FeatureSelection/utils/RCode/monocle3.R " + data_name)
         gene_path = 'scRNA-FeatureSelection/tempData/' + data_name + '_markers_monocle3.csv'

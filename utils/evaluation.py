@@ -4,6 +4,7 @@ from utils.utils import get_gene_names, load_data, cal_marker_num_MRR, delete, f
 from utils.importance import select_features
 from config import classification_cfg, clustering_cfg
 from sklearn.model_selection import StratifiedKFold
+import pandas as pd
 import numpy as np
 import warnings
 import os
@@ -18,11 +19,11 @@ def evaluate_classification_result():
     os.system('Rscript scRNA-FeatureSelection/utils/RCode/classification.R')
     temp_path = 'scRNA-FeatureSelection/tempData/'
     classification_result = dict()
-    label_test = np.loadtxt(temp_path + 'temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object)[:, 1]
+    label_test = np.loadtxt(temp_path + 'temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object_)[:, 1]
     for assign_method in ['scmap_cluster', 'scmap_cell', 'singlecellnet']:
         try:
             label_pred = np.loadtxt(''.join([temp_path, 'temp_', assign_method, '.csv']), delimiter=',', skiprows=1,
-                                    dtype=np.str)
+                                    dtype=np.str_)
             f1 = f1_score(np.squeeze(label_test), np.char.strip(label_pred, '"'), average='weighted')
             classification_result[assign_method + '_F1'] = f1
         except IOError:
@@ -39,16 +40,16 @@ def evaluate_clustering_result():
     os.system('Rscript scRNA-FeatureSelection/utils/RCode/clustering.R')
     temp_path = 'scRNA-FeatureSelection/tempData/'
     clustering_result = dict()
-    label_true = np.loadtxt(temp_path + 'temp_y.csv', delimiter=',', skiprows=1, usecols=[1], dtype=np.str)
+    label_true = np.loadtxt(temp_path + 'temp_y.csv', delimiter=',', skiprows=1, usecols=[1], dtype=np.str_)
     for clustering_method in ['seurat', 'sc3']:
         label_pred_file_name = ''.join([temp_path, 'temp_', clustering_method, '.csv'])
-        label_pred = np.loadtxt(label_pred_file_name, delimiter=',', skiprows=1, dtype=np.str)
+        label_pred = np.loadtxt(label_pred_file_name, delimiter=',', skiprows=1, dtype=np.str_)
         ari = adjusted_rand_score(np.squeeze(label_true), np.squeeze(label_pred))
         clustering_result[clustering_method + '_ARI'] = ari
     return clustering_result
 
 
-def evaluate_classification_methods(dataset: str, methods: list, data_type: str):
+def evaluate_classification_methods(dataset: str, methods: list, data_type: str) -> pd.DataFrame:
     """
     Evaluate classification methods on specific dataset (raw or norm) using 5-fold cross validation.
     The result is saved in results folder.
@@ -56,7 +57,7 @@ def evaluate_classification_methods(dataset: str, methods: list, data_type: str)
     :param dataset: string, data name
     :param methods: list of string, names of feature selection methods
     :param data_type: string, 'raw' or 'norm'
-    :return: None
+    :return: the final evaluation result
     """
     # load raw and norm data
     if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
@@ -145,16 +146,17 @@ def evaluate_classification_methods(dataset: str, methods: list, data_type: str)
     performance_record.divide(5).to_csv(
         ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_assign.csv']))
     print(now() + ": Evaluation is done!")
+    return performance_record
 
 
-def evaluate_clustering_methods(dataset, methods, data_type):
+def evaluate_clustering_methods(dataset: str, methods: list, data_type: str) -> pd.DataFrame:
     """
     Evaluate clustering methods on specific dataset (raw or norm). The result is saved in results folder.
 
     :param dataset: string, data name
     :param methods: list of string, names of feature selection methods
     :param data_type: string, 'raw' or 'norm'
-    :return: None
+    :return: the final evaluation result
     """
     # load raw and norm data
     if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
@@ -174,13 +176,13 @@ def evaluate_clustering_methods(dataset, methods, data_type):
 
     # save raw data and generate clustering result before feature selection
     delete('scRNA-FeatureSelection/tempData/')
-    save_raw_data(X_train=X_raw, y_train=y, task='clustering')
+    save_raw_data(X_train=X_raw, X_test=None, y_train=y, y_test=None, task='clustering')
     before = evaluate_clustering_result()
 
     for method in methods:
         delete('scRNA-FeatureSelection/tempData/')
         if clustering_cfg.method_lan[method] == 'r':
-            save_raw_data(X_train=X_raw, y_train=y, task='clustering')
+            save_raw_data(X_train=X_raw, X_test=None,  y_train=y, y_test=None, task='clustering')
         if data_type == 'raw':
             X = X_raw
         elif data_type == 'norm':
@@ -208,11 +210,10 @@ def evaluate_clustering_methods(dataset, methods, data_type):
         # filter out non-markers
         X_selected, y_selected = filter_const_cells(X_raw.loc[:, mask], y)
         # save raw data and generate clustering result before feature selection
-        save_raw_data(X_train=X_selected, y_train=y_selected, task='clustering')
+        save_raw_data(X_train=X_selected, X_test=None, y_train=y_selected, y_test=None, task='clustering')
         after = evaluate_clustering_result()
 
         # update performance record
-        print(before, after)
         for key in after.keys():
             performance_record.loc[key, method] = after[key] - before[key]
 
@@ -220,3 +221,4 @@ def evaluate_clustering_methods(dataset, methods, data_type):
     performance_record.to_csv(
         ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_clustering.csv']))
     print(now() + ": Evaluation is done!")
+    return performance_record
