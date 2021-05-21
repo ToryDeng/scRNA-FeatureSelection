@@ -10,6 +10,13 @@
             </list>
           </settings>
         </remote-mappings>
+        <remote-mappings server-id="python@sftp://tdeng@52.83.218.83:22/usr/local/anaconda3/bin/python">
+          <settings>
+            <list>
+              <mapping local-root="$PROJECT_DIR$" remote-root="/home/tdeng/SingleCell/scRNA-FeatureSelection" />
+            </list>
+          </settings>
+        </remote-mappings>
       </list>
     </list>
   </component>

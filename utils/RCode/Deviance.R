@@ -1,7 +1,4 @@
-#compute deviance for each gene (row) in a matrix-like object...
-#...or SummarizedExperiment
 
-#' @importFrom methods as
 sparseBinomialDeviance<-function(X,sz){
   #X has features in cols, observations in rows
   #assume X is a sparseMatrix object
@@ -31,7 +28,7 @@ denseBinomialDeviance<-function(X,sz){
   2*(ll_sat-ll_null)
 }
 
-#' @importFrom methods as
+
 sparsePoissonDeviance<-function(X,sz){
   #X has features in cols, observations in rows
   X<-as(X,"CsparseMatrix")
@@ -51,8 +48,7 @@ densePoissonDeviance<-function(X,sz){
   2*(ll_sat-ll_null)
 }
 
-#' @importFrom Matrix t
-#' @importFrom methods is
+
 compute_deviance<-function(m,fam=c("binomial","poisson")){
   #m is either a Matrix or matrix object (later: support DelayedArrays)
   #m a data matrix with genes=rows
@@ -82,11 +78,3 @@ compute_deviance<-function(m,fam=c("binomial","poisson")){
   }
 }
 
-source("/home/tdeng/SingleCell/scRNA-FeatureSelection/utils/RCode/get_data.R")
-data_name<-commandArgs(T)
-scex <- get_data(data_name)
-count_matrix = scex@assays@data@listData[["counts"]]
-file_name <- paste(data_name,'markers_deviance', sep = '_')
-
-deviance_result <- sort(compute_deviance(count_matrix), decreasing = TRUE)[1:1000]
-write.csv(deviance_result, stringr::str_glue("scRNA-FeatureSelection/tempData/{file_name}.csv"))

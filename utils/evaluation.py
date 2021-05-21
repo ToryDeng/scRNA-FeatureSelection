@@ -1,224 +1,136 @@
-from sklearn.metrics import adjusted_rand_score, f1_score
-from utils.utils import get_gene_names, load_data, cal_marker_num_MRR, delete, filter_const_cells, PerformanceRecord, \
-    save_raw_data, filter_const_genes, now, head
-from utils.importance import select_features
-from config import classification_cfg, clustering_cfg
-from sklearn.model_selection import StratifiedKFold
-import pandas as pd
-import numpy as np
-import warnings
 import os
+import warnings
+
+import numpy as np
+import scanpy as sc
+from sklearn.metrics import adjusted_rand_score, classification_report
+from sklearn.model_selection import StratifiedKFold
+
+from config import assign_cfg, cluster_cfg, exp_cfg
+from utils.importance import select_genes
+from utils.record import PerformanceRecorder
+from utils.utils import load_data, delete, save_data, filter_adata
 
 
-def evaluate_classification_result():
+def evaluate_assign_result(recorder: PerformanceRecorder = None):
     """
-    Evaluate classification result using the F1-scores generating from three assign methods.
+    Evaluate assign result using the F1-scores generating from three assign methods.
 
     :return: a dict containing F1-scores of three assign methods
     """
-    os.system('Rscript scRNA-FeatureSelection/utils/RCode/classification.R')
-    temp_path = 'scRNA-FeatureSelection/tempData/'
-    classification_result = dict()
-    label_test = np.loadtxt(temp_path + 'temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object_)[:, 1]
-    for assign_method in ['scmap_cluster', 'scmap_cell', 'singlecellnet']:
+    os.system('Rscript utils/RCode/classification.R >& /dev/null')
+    assign_result = dict()
+    label_test = np.loadtxt('tempData/temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object_)[:, 1]
+    for assign_method in ['scmap_cluster', 'scmap_cell', 'singleR']:
         try:
-            label_pred = np.loadtxt(''.join([temp_path, 'temp_', assign_method, '.csv']), delimiter=',', skiprows=1,
+            label_pred = np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']), delimiter=',', skiprows=1,
                                     dtype=np.str_)
-            f1 = f1_score(np.squeeze(label_test), np.char.strip(label_pred, '"'), average='weighted')
-            classification_result[assign_method + '_F1'] = f1
-        except IOError:
-            print('{} failed to execute. Please check the R output in console.'.format(assign_method))
-    return classification_result
+            report = classification_report(np.squeeze(label_test), np.char.strip(label_pred, '"'),
+                                           output_dict=True, zero_division=0)
+            f1_all = report['weighted avg']['f1-score']
+            f1_rare = report[recorder.rare_type]['f1-score'] if hasattr(recorder, 'rare_type') else 0
+        except OSError:
+            print(f"{assign_method} failed. Set F1 to 0.")
+            f1_all, f1_rare = 0, 0
+        assign_result[assign_method + '_F1'] = f1_all
+        if hasattr(recorder, 'rare_type'):
+            assign_result[assign_method + '_F1_rare'] = f1_rare
+    return assign_result
 
 
-def evaluate_clustering_result():
+def evaluate_cluster_result():
     """
     Evaluate clustering result using the ARI generating from two clustering methods.
 
     :return: a dict containing ARI of two clustering methods
     """
-    os.system('Rscript scRNA-FeatureSelection/utils/RCode/clustering.R')
-    temp_path = 'scRNA-FeatureSelection/tempData/'
-    clustering_result = dict()
-    label_true = np.loadtxt(temp_path + 'temp_y.csv', delimiter=',', skiprows=1, usecols=[1], dtype=np.str_)
-    for clustering_method in ['seurat', 'sc3']:
-        label_pred_file_name = ''.join([temp_path, 'temp_', clustering_method, '.csv'])
-        label_pred = np.loadtxt(label_pred_file_name, delimiter=',', skiprows=1, dtype=np.str_)
-        ari = adjusted_rand_score(np.squeeze(label_true), np.squeeze(label_pred))
-        clustering_result[clustering_method + '_ARI'] = ari
-    return clustering_result
+    os.system('Rscript utils/RCode/clustering.R >& /dev/null')
+    cluster_result = dict()
+    label_true = np.loadtxt('tempData/temp_y.csv', delimiter=',', skiprows=1, usecols=[1], dtype=np.str_)
+    for cluster_method in ['seurat', 'sc3']:
+        label_pred_file_name = ''.join(['tempData/', 'temp_', cluster_method, '.csv'])
+        try:
+            label_pred = np.loadtxt(label_pred_file_name, delimiter=',', skiprows=1, dtype=np.str_)
+            ari = adjusted_rand_score(np.squeeze(label_true), np.squeeze(label_pred))
+        except OSError:
+            print(f"{cluster_method} failed. Set ARI to 0.")
+            ari = 0
+        cluster_result[cluster_method + '_ARI'] = ari
+    return cluster_result
 
 
-def evaluate_classification_methods(dataset: str, methods: list, data_type: str) -> pd.DataFrame:
-    """
-    Evaluate classification methods on specific dataset (raw or norm) using 5-fold cross validation.
-    The result is saved in results folder.
-
-    :param dataset: string, data name
-    :param methods: list of string, names of feature selection methods
-    :param data_type: string, 'raw' or 'norm'
-    :return: the final evaluation result
-    """
+def evaluate_assign_methods(dataset: str, methods: list):
     # load raw and norm data
     if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
         dataset = 'PBMC5'
         warnings.warn("Using 5% of PBMC cells because scGeneFit needs lots of system resource.", RuntimeWarning)
-    X_raw, X_norm, y, trusted_markers = load_data(dataset)
+    adata = load_data(dataset)
+    recorder = PerformanceRecorder(task='assign', data_name=dataset, adata=adata, methods=methods)
 
-    # prepare performance record
-    performance_record = PerformanceRecord(methods=methods, task='assign')
-
-    # output dataset information
-    head(name='Dataset Information')
-    print("Name:{}  Type:{}  Cell(s):{}  Gene(s):{}\nMarker Gene(s):{}".format(
-        dataset, data_type, X_raw.shape[0], X_raw.shape[1],
-        np.intersect1d(get_gene_names(X_raw.columns), trusted_markers).shape[0])
-    )
-
-    # 5-fold CV
-    skf = StratifiedKFold(n_splits=5, random_state=2020, shuffle=True)
-    for train_idx, test_idx in skf.split(X_raw, y):
+    skf = StratifiedKFold(n_splits=assign_cfg.n_folds, random_state=assign_cfg.random_seed, shuffle=True)
+    for i, (train_idx, test_idx) in enumerate(skf.split(adata.X, adata.obs['type'].values)):
         # clean directory
-        delete('scRNA-FeatureSelection/tempData/')
+        delete('tempData/')
+        # split train and test data
+        adata_train, adata_test = adata[train_idx], adata[test_idx]
+        # remove const genes and cells before feature selection
+        gene_mask = sc.pp.filter_genes(adata_train, min_cells=exp_cfg.n_filter_cell, inplace=False)[0]
+        adata_train, adata_test = adata_train[:, gene_mask], adata_test[:, gene_mask]
+        adata_train.raw = adata_train.raw[:, gene_mask].to_adata()
+        adata_test.raw = adata_test.raw[:, gene_mask].to_adata()
+        adata_train, adata_test = filter_adata(adata_train, filter_cell=True), filter_adata(adata_test,
+                                                                                            filter_cell=True)
+        for method in methods:
+            recorder.init_current_feature_selection_method(method, i)
+            # select features
+            result = select_genes(exp_cfg.n_genes, method, adata_train, recorder=recorder, config=assign_cfg)
+            # record markers_found_and_MRR
+            recorder.record_markers_found_and_MRR(result)
+            # get gene mask
+            marker_mask = recorder.get_mask(adata_train.var_names.values, result)
+            # filter out non-markers and save raw data
+            selected_train = filter_adata(adata_train.raw[:, marker_mask].to_adata(), filter_cell=True)
+            selected_test = filter_adata(adata_test.raw[:, marker_mask].to_adata(), filter_cell=True)
+            save_data(selected_train, selected_test)
+            assign_metric = evaluate_assign_result(recorder)
+            recorder.record_metrics_from_dict(assign_metric)
+    recorder.summary(save=True)
+    recorder.save()
 
-        # split raw X_raw, X_norm and y
-        X_raw_train, X_raw_test = X_raw.iloc[train_idx], X_raw.iloc[test_idx]
-        X_norm_train, X_norm_test = X_norm.iloc[train_idx], X_norm.iloc[test_idx]
-        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+def evaluate_cluster_methods(dataset: str, methods: list):
+    # load raw and norm data
+    if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
+        dataset = 'PBMC5'
+        warnings.warn("Using 5% of PBMC cells because scGeneFit needs lots of system resource.", RuntimeWarning)
+    adata = load_data(dataset)
+    recorder = PerformanceRecorder(task='cluster', data_name=dataset, adata=adata, methods=methods)
+
+    for i in range(cluster_cfg.n_loops):
+        skf = StratifiedKFold(n_splits=cluster_cfg.n_folds, random_state=cluster_cfg.random_seed + i, shuffle=True)
+        left_index, right_index = list(skf.split(adata.X, adata.obs['type'].values))[0]
 
         # remove const genes before feature selection
-        X_raw_train, X_norm_train = filter_const_genes(X_raw_train), filter_const_genes(X_norm_train)
-        X_raw_test, X_norm_test = X_raw_test.loc[:, X_raw_train.columns], X_norm_test.loc[:, X_norm_train.columns]
-        gene_names = get_gene_names(X_raw_train.columns)
-
-        # calculate F1-score before feature selection
-        save_raw_data(X_raw_train, X_raw_test, y_train, y_test, task='assign')
-        before = evaluate_classification_result()
-
-        # feature selection
+        adata_left = filter_adata(adata[left_index], filter_gene=True, filter_cell=True)
+        adata_right = filter_adata(adata[right_index], filter_gene=True, filter_cell=True)
+        # clean directory
+        delete('tempData/')
         for method in methods:
-            # delete current files in tempData dir
-            delete('scRNA-FeatureSelection/tempData/')
-            if classification_cfg.method_lan[method] == 'r':
-                save_raw_data(X_raw_train, X_raw_test, y_train, y_test, task='assign')
-            if data_type == 'raw':
-                result = select_features(dataset, 1000, method, gene_names, X_raw_train.values,
-                                         np.squeeze(y_train.values))
-            elif data_type == 'norm':
-                result = select_features(dataset, 1000, method, gene_names, X_norm_train.values,
-                                         np.squeeze(y_train.values))
-            else:
-                result = None
-                warnings.warn("The parameter 'data_type' is wrong. Please check again.", RuntimeWarning)
+            recorder.init_current_feature_selection_method(method, i)
+            # select features
+            all_result = select_genes(exp_cfg.n_genes, method, adata, recorder=recorder, config=cluster_cfg)
+            # record markers_found_and_MRR
+            recorder.record_markers_found_and_MRR(all_result)  # markers found and MRR are generated from intact dataset
 
-            if len(result) == 2:  # method can generate feature importance
-                markers_found, MRR = cal_marker_num_MRR(trusted_markers, result[0], rank=True)
-                performance_record.loc['marker_genes_found', method] += markers_found
-                performance_record.loc['MRR', method] += MRR
-                mask = np.isin(gene_names, result[0])
-            elif len(result) == 1:  # method can not generate feature importance
-                markers_found = cal_marker_num_MRR(trusted_markers, result, rank=False)
-                performance_record.loc['marker_genes_found', method] += markers_found
-                warnings.warn("The method can not generate gene importance! MRR can not be calculated and is set to 0.",
-                              RuntimeWarning)
-                mask = np.isin(gene_names, result)
-            else:
-                warnings.warn("The length of feature selection result is 0 or more than 2.", RuntimeWarning)
-                return None
-            if mask.sum() == 0:
-                warnings.warn("No gene is selected!", RuntimeWarning)
-            # filter out non-markers
-            X_train_selected, y_train_selected = filter_const_cells(X_raw_train.loc[:, mask], y_train)
-            X_test_selected = X_raw_test.loc[:, mask]
+            double_metrics = []
+            for data in [adata_left, adata_right]:
+                half_result = select_genes(exp_cfg.n_genes, method, data, recorder=recorder, config=cluster_cfg)
+                half_mask = recorder.get_mask(data.var_names.values, half_result)
+                half_selected = filter_adata(data.raw[:, half_mask].to_adata(), filter_gene=True, filter_cell=True)
+                save_data(half_selected, task='cluster')
+                half_metric = evaluate_cluster_result()
+                double_metrics.append(half_metric)
 
-            # save X_train and X_test after gene selection
-            save_raw_data(X_train_selected, X_test_selected, y_train_selected, y_test, task='assign')
-
-            # execute R script to generate classification result
-            after = evaluate_classification_result()
-
-            # update performance record
-            print(before, after)
-            for key in after.keys():
-                performance_record.loc[key, method] += after[key] - before[key]
-
-    # save performance record
-    performance_record.divide(5).to_csv(
-        ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_assign.csv']))
-    print(now() + ": Evaluation is done!")
-    return performance_record
-
-
-def evaluate_clustering_methods(dataset: str, methods: list, data_type: str) -> pd.DataFrame:
-    """
-    Evaluate clustering methods on specific dataset (raw or norm). The result is saved in results folder.
-
-    :param dataset: string, data name
-    :param methods: list of string, names of feature selection methods
-    :param data_type: string, 'raw' or 'norm'
-    :return: the final evaluation result
-    """
-    # load raw and norm data
-    if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
-        dataset = 'PBMC5'
-        warnings.warn("Using 5% of PBMC cells because scGeneFit needs lots of system resource.", RuntimeWarning)
-    X_raw, X_norm, y, trusted_markers = load_data(dataset)
-    gene_names = get_gene_names(X_raw.columns)
-
-    # prepare performance record
-    performance_record = PerformanceRecord(methods=methods, task='clustering')
-
-    # output dataset information
-    head(name='Dataset Information')
-    print("Name:{}  Type:{}  Cell(s):{}  Gene(s):{}\nMarker Gene(s):{}".format(
-        dataset, data_type, X_raw.shape[0], X_raw.shape[1], np.intersect1d(gene_names, trusted_markers).shape[0])
-    )
-
-    # save raw data and generate clustering result before feature selection
-    delete('scRNA-FeatureSelection/tempData/')
-    save_raw_data(X_train=X_raw, X_test=None, y_train=y, y_test=None, task='clustering')
-    before = evaluate_clustering_result()
-
-    for method in methods:
-        delete('scRNA-FeatureSelection/tempData/')
-        if clustering_cfg.method_lan[method] == 'r':
-            save_raw_data(X_train=X_raw, X_test=None,  y_train=y, y_test=None, task='clustering')
-        if data_type == 'raw':
-            X = X_raw
-        elif data_type == 'norm':
-            X = X_norm
-        else:
-            warnings.warn("The parameter 'data_type' is wrong. Please check again.", RuntimeWarning)
-            return None
-        result = select_features(dataset, 1000, method, gene_names, X=X.values, y=np.squeeze(y.values))  # consistency
-        if len(result) == 2:  # method can generate feature importance
-            markers_found, MRR = cal_marker_num_MRR(trusted_markers, result[0], rank=True)
-            performance_record.loc['marker_genes_found', method] = markers_found
-            performance_record.loc['MRR', method] = MRR
-            mask = np.isin(gene_names, result[0])
-        elif len(result) == 1:  # method can not generate feature importance
-            markers_found = cal_marker_num_MRR(trusted_markers, result, rank=False)
-            performance_record.loc['marker_genes_found', method] = markers_found
-            warnings.warn("The method can not generate gene importance! MRR can not be calculated and is set to 0.",
-                          RuntimeWarning)
-            mask = np.isin(gene_names, result)
-        else:
-            warnings.warn("The length of feature selection result is 0 or more than 2.", RuntimeWarning)
-            return None
-        if mask.sum() == 0:
-            warnings.warn("No gene is selected!", RuntimeWarning)
-        # filter out non-markers
-        X_selected, y_selected = filter_const_cells(X_raw.loc[:, mask], y)
-        # save raw data and generate clustering result before feature selection
-        save_raw_data(X_train=X_selected, X_test=None, y_train=y_selected, y_test=None, task='clustering')
-        after = evaluate_clustering_result()
-
-        # update performance record
-        for key in after.keys():
-            performance_record.loc[key, method] = after[key] - before[key]
-
-    # save performance record
-    performance_record.to_csv(
-        ''.join(['scRNA-FeatureSelection/results/', dataset, '_', data_type, '_clustering.csv']))
-    print(now() + ": Evaluation is done!")
-    return performance_record
+            recorder.record_metrics_from_dict(double_metrics)
+    recorder.summary(save=True)
+    recorder.save()

@@ -2,10 +2,31 @@
 <project version="4">
   <component name="PublishConfigData" autoUpload="Always" serverName="scRNA-FeatureSelection">
     <serverData>
+      <paths name="feature-selection2">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="scDehazingNet">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="scRNA-FeatureSelection">
         <serverdata>
           <mappings>
             <mapping deploy="/home/tdeng/SingleCell/scRNA-FeatureSelection" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="scRemove">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

@@ -68,14 +68,14 @@ The normalization method in **Seurat**.
 - **Adjusted Rand Index (ARI)**  
   ARI increment of 2 clustering methods: Seurat and SC3.
 - **F1-score**  
-  F1-score increment of 2 classification methods: scmap and singlecellnet (using 5-fold CV).
+  F1-score increment of 2 classification methods: scmap and singleR (using 5-fold CV).
 ## Examples
 ### Evaluation
 ```python
-from utils.evaluation import evaluate_classification_methods, evaluate_clustering_methods
+from utils.evaluation import evaluate_assign_methods, evaluate_cluster_methods
 
-evaluate_classification_methods(dataset='xin', methods=['rf', 'xgb', 'nsc', 'var'], data_type='raw')
-evaluate_clustering_methods(dataset='muraro', methods=['cellassign', 'deviance'], data_type='norm')
+evaluate_assign_methods(dataset='xin', methods=['rf', 'xgb', 'nsc', 'var'])
+evaluate_cluster_methods(dataset='muraro', methods=['cellassign', 'deviance'])
 ```
 ### Ensemble Gene Selection
 ```python

@@ -30,7 +30,7 @@ main <- function(){
   sce_test <- load_sce("test")
   
   cluster_methods <- c('seurat','sc3')#  'tscan', , 'cidr', 'liger', 'scmap'
-  assign_methods <- c('scmap_cluster', 'scmap_cell', 'singlecellnet')
+  assign_methods <- c('scmap_cluster', 'scmap_cell', 'singleR')
   
   for (i in 1:length(cluster_methods)){
     cluster_result <- run_cluster_methods(cluster_methods[i], sce_all)
