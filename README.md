@@ -14,7 +14,7 @@ Evaluation of several gene selection methods (including ensemble gene selection 
       utils.py             # data processing functions 
       ensemble_gene_selection.py    # the ensemble gene selection function
     tempData-        # store temporary data
-    results-         # store results of evaluation
+    records-         # store records of evaluation
     main.py          # the main function
     examples.ipynb-  # some examples about usage
     config.py        # experiment and data configuration
@@ -54,12 +54,12 @@ Evaluation of several gene selection methods (including ensemble gene selection 
   co-expression) or contamination(alpha.contaminated, delta.contaminated, gamma.contaminated, beta.contaminated).
 
 ## Marker Genes
-| Dataset | All Marker Genes | Marker Genes in Data |
-| :-----: | :-----------: | :-----------: | 
-|'PBMC*'      | 101 |  42 |
-| 'muraro'    | 365 | 313 |
-|'segerstolpe'| 365 | 320 |
-|'xin'        | 365 | 321 |
+| Dataset | Marker Genes in Data |
+| :-----: | :-----------: |
+|'PBMC*'      | 287 |
+| 'muraro'    | 313 |
+|'segerstolpe'| 320 |
+|'xin'        | 321 |
 
 ## Normalization
 The normalization method in **Seurat**.
@@ -70,33 +70,38 @@ The normalization method in **Seurat**.
 - **Mean Reciprocal Rank (MRR)**  
   ![1](https://latex.codecogs.com/gif.latex?MRR=\frac{1}{\vert&space;Q&space;\vert}\sum_{i=1}^{\vert&space;Q&space;\vert}\frac{1}{rank_{i}})
 - **Adjusted Rand Index (ARI)**  
-  ARI increment of 2 clustering methods: Seurat and SC3.
+  ARI of 2 clustering methods: Seurat and SC3.
 - **F1-score**  
-  F1-score increment of 2 classification methods: scmap and singleR (using 5-fold CV).
+  F1-score of 3 classification methods: scmap-cluster, scmap-cell and singleR (using 5-fold CV).
+- **Consistency**
+  
+  For classification task, evaluate consistency by calculating the variance of F1-scores 
+  generated from 5-fold CV. For clustering task, evaluate consistency by calculating the 
+  absolute mean value of the difference of average ARI between two splits.
+- **Computation Time**
 ## Examples
-### Evaluation
+### Evaluation of Single Gene Selection Method
 ```python
 from utils.evaluation import evaluate_assign_methods, evaluate_cluster_methods
 
 evaluate_assign_methods(dataset='xin', methods=['rf', 'xgb', 'nsc', 'var'])
 evaluate_cluster_methods(dataset='muraro', methods=['cellassign', 'deviance'])
 ```
-### Ensemble Gene Selection
+### Evaluation of Ensemble Gene Selection Method
 ```python
 from utils.evaluation import evaluate_assign_methods
 
 
 evaluate_assign_methods(dataset='PBMC20%', methods=['rf+fisher_score', 'rf', 'fisher_score'])
 ```
+All the records will be stored in the directory ***records/***.
 
 
 ## Notes
-1. The ***data/*** directory is at the same level as this program.
-2. You can choose which type of data the methods will be implemented on by specifying data type
-   in **config.py**
-3. Parameter ***'methods'*** must be a list. If ***'methods'*** contains 'scGeneFit' and dataset is PBMC, then all the 
+
+1. By specifying data type in **config.py**, you can choose which type of data the methods will use.
+2. Parameter ***'methods'*** must be a list. If ***'methods'*** contains 'scGeneFit' and dataset is PBMC, then all the 
    methods will only run on PBMC5. This is because the scGeneFit written by Python is very slow and occupies much system 
    resource when the number of cells is more than 3000.
-4. Records will be stored in the directory ***records/***.
 
 

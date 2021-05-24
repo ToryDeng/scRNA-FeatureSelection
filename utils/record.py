@@ -24,7 +24,7 @@ class PerformanceRecorder:
         self.methods = methods
         self.adata = adata
         self.cell_type_counts = adata.obs['type'].value_counts(ascending=True)
-        self.n_marker_cotain = adata.uns['markers'].shape[0]
+        self.n_marker_contain = adata.uns['markers'].shape[0]
         self.n_genes = exp_cfg.n_genes
 
         if task == 'assign':
@@ -73,8 +73,8 @@ class PerformanceRecorder:
 
     def show_dataset_info(self):
         head(name='Dataset Information')
-        print("Name:{:^15}  Cell(s):{:<5d}  Gene(s):{:<5d}  Marker Gene(s):{:<4d}".format(
-            self.data_name, self.adata.n_obs, self.adata.n_vars, self.n_marker_cotain,
+        print("Name:{:^15}  Cell(s):{:<5d}  Gene(s):{:<5d}  Marker Gene(s):{:<4d}\nCell Types:{}".format(
+            self.data_name, self.adata.n_obs, self.adata.n_vars, self.n_marker_contain, self.adata.obs['type'].unique()
         ))
         if hasattr(self, 'rare_type'):
             print("Rare Cell Type:{:<20}  Rate:{:.2%}     Num:{}".format(
@@ -92,11 +92,6 @@ class PerformanceRecorder:
             raise ValueError(f"selected_results should be tuple or list, but is {type(selected_results)}")
         self.markers_found.loc[self.current_fold, self.current_method] = markers_found
         self.MRR.loc[self.current_fold, self.current_method] = MRR
-
-        # np.setext('selected_features.csv', np.sort(selected_features), delimiter=',', fmt='%s')
-        # np.savetxt('all_features[mask].csv', np.sort(all_features[mask]), delimiter=',', fmt='%s')
-        # print(all_features[np.char.startswith(all_features.astype(np.str), prefix='C1QTNF5')])
-        # print(all_features, selected_features)
 
     def get_mask(self, all_genes: np.ndarray, single_selected_result: tuple):
         selected_genes = single_selected_result[0]
@@ -135,7 +130,7 @@ class PerformanceRecorder:
 
     def cmpt_time_start(self):
         """
-        For python methods
+        For python methods, start counting computation time
 
         :return: None
         """
@@ -147,7 +142,7 @@ class PerformanceRecorder:
 
     def cmpt_time_end(self):
         """
-        For python methods
+        For python methods, end counting computation time
 
         :return:
         """
@@ -214,10 +209,29 @@ class PerformanceRecorder:
         if self.current_method == self.methods[-1]:
             self.current_fold += 1
 
-    def summary(self, save=False):
+    def handle_timeout(self):
+        """
+        This function is only used in 'evaluate_assign_methods'.
+
+        :return: None
+        """
+        print(f"{self.current_method} reached maximum computation time.")
+        for metric in ['MRR', 'markers_found', 'scmap_cluster_F1', 'scmap_cell_F1', 'scmap_cell_F1', 'singleR_F1',
+                       'scmap_cluster_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare', 'seurat_ARI', 'sc3_ARI']:
+            if hasattr(self, metric):
+                getattr(self, metric).loc[self.current_fold, self.current_method] = 0
+        if assign_cfg.method_lan[self.current_method] == 'python':  # actually only scGeneFit
+            self.cmpt_time_end()
+        else:
+            self.computation_time.loc[self.current_fold, self.current_method] += exp_cfg.max_timeout
+        if self.current_method == self.methods[-1]:
+            self.current_fold += 1
+
+    def summary(self, show=False, save=False):
         """
         print summary of evaluation
 
+        :param show: whether to show summary
         :param save: whether to save the summary
         :return: summary
         """
@@ -232,11 +246,12 @@ class PerformanceRecorder:
             if hasattr(self, idx):
                 summary.loc[idx, :] = getattr(self, idx).applymap(
                     lambda x: x if isinstance(x, float) else np.mean(eval(x))).mean(axis=0)
-        print('\n' * 3)
-        head(f'summary of evaluation on {self.data_name} dataset')
-        print(summary)
+        if show:
+            print('\n' * 3)
+            head(f'summary of evaluation on {self.data_name} dataset')
+            print(summary)
         if save:
-            summary.to_csv('records/' + '-'.join([self.data_name, self.task, str(self.n_genes)]) + '.csv')
+            summary.to_csv(exp_cfg.record_path + '-'.join([self.data_name, self.task, str(self.n_genes)]) + '.csv')
         return summary
 
     def save(self):
@@ -245,8 +260,8 @@ class PerformanceRecorder:
 
         :return: None
         """
-        file_path = 'records/' + '-'.join([self.data_name, self.task, str(self.n_genes)]) + '.pkl'
-        self.adata = None  # do not save ann data
+        file_path = exp_cfg.record_path + '-'.join([self.data_name, self.task, str(self.n_genes)]) + '.pkl'
+        self.adata = None  # do not save anndata
         with open(file_path, 'wb') as f:
             pickle.dump(self, f)
         print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "

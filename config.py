@@ -21,7 +21,10 @@ class ExperimentConfig:
         self.n_filter_cell = 3
         self.n_filter_gene = 3
         self.n_genes = 1000  # TODO: 500? 2000?
+        self.max_timeout = 60 * 30  # 60 seconds per minute * 30 minutes
         self.ensemble_mode = 'importance_sum'
+
+        self.record_path = 'records/'
 
 
 class AssignConfig(ExperimentConfig):
@@ -52,7 +55,7 @@ class ClusterConfig(ExperimentConfig):
     def __init__(self):
         super().__init__()
         self.n_folds = 2
-        self.n_loops = 2  # 10 loops
+        self.n_loops = 10  # 10 loops
 
 
 class DataConfig:

@@ -1,5 +1,4 @@
 import os
-import warnings
 
 import numpy as np
 import scanpy as sc
@@ -22,16 +21,16 @@ def evaluate_assign_result(recorder: PerformanceRecorder = None):
     assign_result = dict()
     label_test = np.loadtxt('tempData/temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object_)[:, 1]
     for assign_method in ['scmap_cluster', 'scmap_cell', 'singleR']:
-        try:
-            label_pred = np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']), delimiter=',', skiprows=1,
-                                    dtype=np.str_)
+        label_pred = np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']), delimiter=',', skiprows=1,
+                                dtype=np.str_)
+        if label_pred.shape[0] == 0:
+            print(f"{assign_method} failed. Set F1 to 0.")
+            f1_all, f1_rare = 0, 0
+        else:
             report = classification_report(np.squeeze(label_test), np.char.strip(label_pred, '"'),
                                            output_dict=True, zero_division=0)
             f1_all = report['weighted avg']['f1-score']
             f1_rare = report[recorder.rare_type]['f1-score'] if hasattr(recorder, 'rare_type') else 0
-        except OSError:
-            print(f"{assign_method} failed. Set F1 to 0.")
-            f1_all, f1_rare = 0, 0
         assign_result[assign_method + '_F1'] = f1_all
         if hasattr(recorder, 'rare_type'):
             assign_result[assign_method + '_F1_rare'] = f1_rare
@@ -60,10 +59,14 @@ def evaluate_cluster_result():
 
 
 def evaluate_assign_methods(dataset: str, methods: list):
+    """
+    Only this function can handle Timeout error because scGeneFit is a supervised method.
+
+    :param dataset: str, name of data
+    :param methods: list, methods to evaluate
+    :return: None
+    """
     # load raw and norm data
-    if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
-        dataset = 'PBMC5'
-        warnings.warn("Using 5% of PBMC cells because scGeneFit needs lots of system resource.", RuntimeWarning)
     adata = load_data(dataset)
     recorder = PerformanceRecorder(task='assign', data_name=dataset, adata=adata, methods=methods)
 
@@ -82,27 +85,25 @@ def evaluate_assign_methods(dataset: str, methods: list):
                                                                                             filter_cell=True)
         for method in methods:
             recorder.init_current_feature_selection_method(method, i)
-            # select features
+            # select features using a kind of single or ensemble method
             result = select_genes(exp_cfg.n_genes, method, adata_train, recorder=recorder, config=assign_cfg)
-            # record markers_found_and_MRR
-            recorder.record_markers_found_and_MRR(result)
-            # get gene mask
-            marker_mask = recorder.get_mask(adata_train.var_names.values, result)
-            # filter out non-markers and save raw data
-            selected_train = filter_adata(adata_train.raw[:, marker_mask].to_adata(), filter_cell=True)
-            selected_test = filter_adata(adata_test.raw[:, marker_mask].to_adata(), filter_cell=True)
-            save_data(selected_train, selected_test)
-            assign_metric = evaluate_assign_result(recorder)
-            recorder.record_metrics_from_dict(assign_metric)
-    recorder.summary(save=True)
+            if result is not None:
+                # record markers_found_and_MRR
+                recorder.record_markers_found_and_MRR(result)
+                # get gene mask
+                marker_mask = recorder.get_mask(adata_train.var_names.values, result)
+                # filter out non-markers and save raw data
+                selected_train = filter_adata(adata_train.raw[:, marker_mask].to_adata(), filter_cell=True)
+                selected_test = filter_adata(adata_test.raw[:, marker_mask].to_adata(), filter_cell=True)
+                save_data(selected_train, selected_test)
+                assign_metric = evaluate_assign_result(recorder)
+                recorder.record_metrics_from_dict(assign_metric)
+    recorder.summary(save=True, show=True)
     recorder.save()
 
 
 def evaluate_cluster_methods(dataset: str, methods: list):
     # load raw and norm data
-    if dataset[:4] == 'PBMC' and 'scGeneFit' in methods:
-        dataset = 'PBMC5'
-        warnings.warn("Using 5% of PBMC cells because scGeneFit needs lots of system resource.", RuntimeWarning)
     adata = load_data(dataset)
     recorder = PerformanceRecorder(task='cluster', data_name=dataset, adata=adata, methods=methods)
 

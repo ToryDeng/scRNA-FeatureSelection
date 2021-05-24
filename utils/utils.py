@@ -41,7 +41,6 @@ def load_data(data_name: str) -> ad.AnnData:
     using the method in Seurat.
 
     :param data_name: the dataset name you want to get
-    :param scale_factor: size factor, default 1e4
     :return:  anndata object with raw_data, norm_data and markers in data
     """
     sc.settings.verbosity = 1
@@ -66,15 +65,16 @@ def load_data(data_name: str) -> ad.AnnData:
             else:
                 raise ValueError("Wrong data name.")
         os.chdir(data_cfg.PBMC_markers_path)
-        part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.object_, delimiter=',')
-        part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.object_, delimiter=',')
-        markers = np.union1d(part1, part2)
+        part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
+        part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.str_, delimiter=',')
+        part3 = np.unique(np.loadtxt('CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str_, delimiter=','))
+        markers = np.union1d(np.union1d(part1, part2), part3)
 
     elif data_name in ['muraro', 'segerstolpe', 'xin']:
         data = pd.read_hdf(data_cfg.pancreas_path, key=data_name.capitalize() + '_pancreas')
         data = data.loc[~data.iloc[:, -1].isin(data_cfg.pancreas_remove_types).values]
         os.chdir(data_cfg.pancreas_markers_path)
-        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.object_, delimiter=',')
+        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
     else:
         raise ValueError(f"data name {data_name} is wrong!")
     os.chdir("../../scRNA-FeatureSelection")  # return to scRNA-FeatureSelection dir

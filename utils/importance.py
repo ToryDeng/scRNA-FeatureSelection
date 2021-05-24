@@ -2,6 +2,7 @@ from typing import Tuple, Optional, Union
 from collections import defaultdict
 import anndata as ad
 import pandas as pd
+import timeout_decorator
 from utils.utils import get_gene_names, save_data, delete
 from utils.record import PerformanceRecorder
 from config import AssignConfig, ClusterConfig, exp_cfg
@@ -15,7 +16,7 @@ import numpy as np
 # seurat
 import scanpy as sc
 # scGeneFit
-from models.scGeneFit import scGeneFit
+from models.scgenefit import get_importance
 # fisher score
 from models.fisher_score import fisher_score
 # nearest shrunken centroid
@@ -45,15 +46,16 @@ def most_important_genes(importances: np.ndarray, feature_num: int, all_features
 
 
 def execute_Rscript(data_name: str, method: str, show_detail: bool = False) -> str:
-    cmds = ['Rscript utils/RCode/select_markers.R', data_name, method, str(exp_cfg.n_genes)]
+    cmd = ['Rscript utils/RCode/select_markers.R', data_name, method, str(exp_cfg.n_genes)]
     if not show_detail:
-        cmds.append('>& /dev/null')
-    command = ' '.join(cmds)
+        cmd.append('>& /dev/null')
+    command = ' '.join(cmd)
     os.system(command) if method != 'cellassign' else os.system('export MKL_THREADING_LAYER=GNU && ' + command)
     gene_path = f'tempData/{data_name}_markers_{method}.csv'
     return gene_path
 
 
+@timeout_decorator.timeout(seconds=exp_cfg.max_timeout)
 def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
                     recorder: Optional[PerformanceRecorder] = None,
                     config: Union[AssignConfig, ClusterConfig] = None) \
@@ -61,9 +63,9 @@ def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
     """
     For python method, use adata to select features; For R method, save data as csv and call Rscript.
 
-    :param feature_num:
-    :param method:
-    :param adata:
+    :param feature_num: how many genes to select
+    :param method: which method to implement
+    :param adata: anndata object which contains raw and norm data
     :param recorder: record performance (time mainly)
     :param config: config for assign task or clustering task
     :return: selection result
@@ -98,9 +100,7 @@ def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
                 np.sum(np.squeeze(np.mean(X, axis=0)) < 1e-4)))
             importance = np.square(np.std(X, axis=0) / np.mean(X, axis=0))
         elif method == 'scGeneFit':
-            le = LabelEncoder()
-            y_encoded = le.fit_transform(y)
-            importance = scGeneFit(X, y_encoded, 0)
+            importance = get_importance(X, y, feature_num, verbose=False)
         elif method == 'fisher_score':
             importance = fisher_score(X, y)
         elif method == 'nsc':
@@ -127,7 +127,7 @@ def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
         elif method == 'cellassign':
             gene_path = execute_Rscript(adata.uns['data_name'], method)
             recorder.record_cmpt_time_from_csv()
-            return (get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=1)),)
+            return get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=1)),
         elif method == 'deviance':
             gene_and_importance = np.loadtxt(execute_Rscript(adata.uns['data_name'], method), dtype=np.object_,
                                              delimiter=',', usecols=[0, 1], skiprows=1)
@@ -144,39 +144,44 @@ def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
             else:
                 return get_gene_names(gene_and_importance[:, 0]), gene_and_importance[:, 1]
         else:
-            raise NotImplementedError(f"{method} has not been implemented.")
+            raise NotImplementedError(f"{method} has not been implemented yet.")
 
 
 def select_genes(feature_num: int, method: str, adata: ad.AnnData = None,
                  recorder: Optional[PerformanceRecorder] = None,
                  config: Union[AssignConfig, ClusterConfig] = None)\
         -> Union[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, ], None]:
-    if '+' in method:  # ensemble learning
-        base_methods = method.split('+')
-        gene_dict = defaultdict(int)
-        if exp_cfg.ensemble_mode == 'importance_sum':
-            for base_method in base_methods:
-                # delete current files in tempData
-                delete('tempData/')
-                result = select_features(feature_num, base_method, adata, recorder=recorder, config=config)
-                if len(result) != 2:
-                    raise RuntimeError(f"{base_method} can't generate feature importances!")
-                else:
-                    genes, importances = result
-                    importances_norm = (importances - importances.min()) / (importances.max() - importances.min())  # Normalization
-                    for gene, importance in zip(genes, importances_norm):
-                        gene_dict[gene] += importance
-        elif exp_cfg.ensemble_mode == 'count_sum':
-            for base_method in base_methods:
-                # delete current files in tempData
-                delete('tempData/')
-                result = select_features(exp_cfg.n_genes, base_method, adata, recorder=recorder, config=config)
-                for gene in result[0]:
-                    gene_dict[gene] += 1
-        else:
-            raise NotImplementedError(f"{exp_cfg.ensemble_mode} has not been implemented yet.")
-        sorted_result = pd.Series(gene_dict).sort_values(ascending=False).iloc[:1000].reset_index().T.to_numpy()
-        return sorted_result[0], sorted_result[1]
-    else:  # single method
-        return select_features(feature_num, method, adata, recorder=recorder, config=config)
-
+    try:
+        if '+' in method:  # ensemble learning
+            base_methods = method.split('+')
+            gene_dict = defaultdict(int)
+            if exp_cfg.ensemble_mode == 'importance_sum':
+                for base_method in base_methods:
+                    # delete current files in tempData
+                    delete('tempData/')
+                    result = select_features(feature_num, base_method, adata, recorder=recorder, config=config)
+                    if len(result) != 2:
+                        raise RuntimeError(f"{base_method} can't generate feature importances!")
+                    else:
+                        genes, importances = result
+                        # Normalization
+                        importances_norm = (importances - importances.min()) / (importances.max() - importances.min())
+                        for gene, importance in zip(genes, importances_norm):
+                            gene_dict[gene] += importance
+            elif exp_cfg.ensemble_mode == 'count_sum':
+                for base_method in base_methods:
+                    # delete current files in tempData
+                    delete('tempData/')
+                    result = select_features(exp_cfg.n_genes, base_method, adata, recorder=recorder, config=config)
+                    for gene in result[0]:
+                        gene_dict[gene] += 1
+            else:
+                raise NotImplementedError(f"{exp_cfg.ensemble_mode} has not been implemented yet.")
+            sorted_result = pd.Series(gene_dict).sort_values(ascending=False).iloc[:1000].reset_index().T.to_numpy()
+            final_result = (sorted_result[0], sorted_result[1])
+        else:  # single method
+            final_result = select_features(feature_num, method, adata, recorder=recorder, config=config)
+    except timeout_decorator.timeout_decorator.TimeoutError:
+        recorder.handle_timeout()
+        final_result = None
+    return final_result
