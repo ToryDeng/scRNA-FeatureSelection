@@ -108,6 +108,11 @@ def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
             gs = GridSearchCV(NearestCentroid(), param_grid=th_dict, cv=3, scoring='balanced_accuracy').fit(X, y)
             print('best score:{}, best threshold:{}'.format(gs.best_score_, gs.best_params_['shrink_threshold']))
             importance = nearest_centroid_select(X, y, shrink_threshold=gs.best_params_['shrink_threshold'])
+        elif method == 'DE':
+            sc.tl.rank_genes_groups(adata, groupby='type', use_raw=False, method='wilcoxon')
+            names = pd.DataFrame(adata.uns['rank_genes_groups']['names']).values
+            scores = pd.DataFrame(adata.uns['rank_genes_groups']['scores']).values
+            importance = np.array([scores[names == gene].max() for gene in adata.var_names])
         else:
             raise NotImplementedError(f"{method} has not been implemented.")
         recorder.cmpt_time_end()
@@ -132,13 +137,12 @@ def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
             gene_and_importance = np.loadtxt(execute_Rscript(adata.uns['data_name'], method), dtype=np.object_,
                                              delimiter=',', usecols=[0, 1], skiprows=1)
             recorder.record_cmpt_time_from_csv()
-            return get_gene_names(gene_and_importance[:, 0]), gene_and_importance[:, 1].astype(np.float_)
+            return get_gene_names(gene_and_importance[:feature_num, 0]), gene_and_importance[:feature_num, 1].astype(np.float_)
         elif method == 'monocle3':
             gene_and_importance = pd.read_csv(execute_Rscript(adata.uns['data_name'], method),
                                               usecols=['gene_id', 'pseudo_R2']).values
-            selected_genes_num = gene_and_importance.shape[0]
             recorder.record_cmpt_time_from_csv()
-            if selected_genes_num > feature_num:
+            if gene_and_importance.shape[0] > feature_num:
                 return get_gene_names(gene_and_importance[:feature_num, 0]), \
                        gene_and_importance[:feature_num, 1].astype(np.float)
             else:
@@ -172,12 +176,12 @@ def select_genes(feature_num: int, method: str, adata: ad.AnnData = None,
                 for base_method in base_methods:
                     # delete current files in tempData
                     delete('tempData/')
-                    result = select_features(exp_cfg.n_genes, base_method, adata, recorder=recorder, config=config)
+                    result = select_features(feature_num, base_method, adata, recorder=recorder, config=config)
                     for gene in result[0]:
                         gene_dict[gene] += 1
             else:
                 raise NotImplementedError(f"{exp_cfg.ensemble_mode} has not been implemented yet.")
-            sorted_result = pd.Series(gene_dict).sort_values(ascending=False).iloc[:1000].reset_index().T.to_numpy()
+            sorted_result = pd.Series(gene_dict).sort_values(ascending=False).iloc[:feature_num].reset_index().T.to_numpy()
             final_result = (sorted_result[0], sorted_result[1])
         else:  # single method
             final_result = select_features(feature_num, method, adata, recorder=recorder, config=config)

@@ -8,7 +8,7 @@ from sklearn.model_selection import StratifiedKFold
 from config import assign_cfg, cluster_cfg, exp_cfg
 from utils.importance import select_genes
 from utils.record import PerformanceRecorder
-from utils.utils import load_data, delete, save_data, filter_adata
+from utils.utils import load_data, delete, save_data, filter_adata, f1_score_cluster
 
 
 def evaluate_assign_result(recorder: PerformanceRecorder = None):
@@ -17,10 +17,11 @@ def evaluate_assign_result(recorder: PerformanceRecorder = None):
 
     :return: a dict containing F1-scores of three assign methods
     """
+    print(os.getcwd())
     os.system('Rscript utils/RCode/classification.R >& /dev/null')
     assign_result = dict()
     label_test = np.loadtxt('tempData/temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object_)[:, 1]
-    for assign_method in ['scmap_cluster', 'scmap_cell', 'singleR']:
+    for assign_method in ['singlecellnet', 'scmap_cell', 'singleR']:
         label_pred = np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']), delimiter=',', skiprows=1,
                                 dtype=np.str_)
         if label_pred.shape[0] == 0:
@@ -37,7 +38,7 @@ def evaluate_assign_result(recorder: PerformanceRecorder = None):
     return assign_result
 
 
-def evaluate_cluster_result():
+def evaluate_cluster_result(recorder: PerformanceRecorder = None):
     """
     Evaluate clustering result using the ARI generating from two clustering methods.
 
@@ -45,16 +46,17 @@ def evaluate_cluster_result():
     """
     os.system('Rscript utils/RCode/clustering.R >& /dev/null')
     cluster_result = dict()
-    label_true = np.loadtxt('tempData/temp_y.csv', delimiter=',', skiprows=1, usecols=[1], dtype=np.str_)
+    label_true = np.squeeze(np.loadtxt('tempData/temp_y.csv', delimiter=',', skiprows=1, usecols=[1], dtype=np.str_))
     for cluster_method in ['seurat', 'sc3']:
         label_pred_file_name = ''.join(['tempData/', 'temp_', cluster_method, '.csv'])
         try:
-            label_pred = np.loadtxt(label_pred_file_name, delimiter=',', skiprows=1, dtype=np.str_)
-            ari = adjusted_rand_score(np.squeeze(label_true), np.squeeze(label_pred))
+            label_pred = np.squeeze(np.loadtxt(label_pred_file_name, delimiter=',', skiprows=1, dtype=np.str_))
+            cluster_result[cluster_method + '_ARI'] = adjusted_rand_score(label_true, label_pred)
+            if hasattr(recorder, 'rare_type'):
+                r_mask = label_true == recorder.rare_type
+                cluster_result[cluster_method + '_F1_rare'] = f1_score_cluster(label_true[r_mask], label_pred[r_mask])
         except OSError:
-            print(f"{cluster_method} failed. Set ARI to 0.")
-            ari = 0
-        cluster_result[cluster_method + '_ARI'] = ari
+            print(f"{cluster_method} failed. Set ARI and F1 of the rare cell type to 0.")
     return cluster_result
 
 
@@ -129,9 +131,9 @@ def evaluate_cluster_methods(dataset: str, methods: list):
                 half_mask = recorder.get_mask(data.var_names.values, half_result)
                 half_selected = filter_adata(data.raw[:, half_mask].to_adata(), filter_gene=True, filter_cell=True)
                 save_data(half_selected, task='cluster')
-                half_metric = evaluate_cluster_result()
+                half_metric = evaluate_cluster_result(recorder)
                 double_metrics.append(half_metric)
 
             recorder.record_metrics_from_dict(double_metrics)
-    recorder.summary(save=True)
+    recorder.summary(save=True, show=True)
     recorder.save()

@@ -6,7 +6,7 @@ require(Hmisc)
 setwd('/home/tdeng/SingleCell/scRNA-FeatureSelection/tempData')
 sce_train <- load_sce("train")
 sce_test <- load_sce("test")
-assign_methods <- c('scmap_cluster', 'scmap_cell', 'singleR')
+assign_methods <- c('singlecellnet', 'scmap_cell', 'singleR')
 
 for (j in 1:length(assign_methods)){
   assign_result <- run_assign_methods(assign_methods[j], sce_train, sce_test)

@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from sklearn.model_selection import train_test_split
+from sklearn.metrics.cluster import pair_confusion_matrix
 
 from config import data_cfg, exp_cfg
 
@@ -75,6 +76,13 @@ def load_data(data_name: str) -> ad.AnnData:
         data = data.loc[~data.iloc[:, -1].isin(data_cfg.pancreas_remove_types).values]
         os.chdir(data_cfg.pancreas_markers_path)
         markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
+    elif data_name[:3] == 'sim':
+        if data_name == 'sim_raw':
+            data = pd.read_hdf(data_cfg.sim_path, key='sim_all')
+        else:  # 200, 500, 1000, 2000, 5000, 10000 cells
+            data = pd.read_hdf(data_cfg.sim_path, key=data_name)
+        os.chdir(data_cfg.sim_markers_path)
+        markers = data.columns[-2001:-1].to_numpy()
     else:
         raise ValueError(f"data name {data_name} is wrong!")
     os.chdir("../../scRNA-FeatureSelection")  # return to scRNA-FeatureSelection dir
@@ -166,6 +174,13 @@ def filter_adata(adata: ad.AnnData, filter_gene: bool = False, filter_cell: bool
     return adata
 
 
-def normalize_importances(importances:np.ndarray) -> np.ndarray:
+def normalize_importances(importances: np.ndarray) -> np.ndarray:
     min_importance, max_importance = np.min(importances), np.max(importances)
     return (importances - min_importance) / (max_importance - min_importance)
+
+
+def f1_score_cluster(true_label, pred_label):
+    matrix = pair_confusion_matrix(true_label, pred_label)  # [[TN, FP], [FN, TP]]
+    precision = matrix[1, 1] / (matrix[1, 1] + matrix[0, 1])  # TP/(TP + FP)
+    recall = matrix[1, 1] / (matrix[1, 1] + matrix[1, 0])  # TP / (TP + FN)
+    return 2 * precision * recall / (precision + recall)

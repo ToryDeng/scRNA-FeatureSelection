@@ -26,31 +26,43 @@ class PerformanceRecorder:
         self.cell_type_counts = adata.obs['type'].value_counts(ascending=True)
         self.n_marker_contain = adata.uns['markers'].shape[0]
         self.n_genes = exp_cfg.n_genes
+        self.former_methods = None
 
         if task == 'assign':
+            self.save_name = exp_cfg.record_path + '-'.join([self.data_name, self.task, str(self.n_genes)]) + '.pkl'
+
             self.MRR = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
             self.markers_found = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
 
-            self.scmap_cluster_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
+            self.singlecellnet_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
             self.scmap_cell_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
             self.singleR_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
 
             if self.cell_type_counts[0] >= assign_cfg.n_folds * 2:  # to ensure that each fold contains rare cells
                 self.rare_type = self.cell_type_counts.index[0]
-                self.scmap_cluster_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
+                self.singlecellnet_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
                 self.scmap_cell_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
                 self.singleR_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
 
             self.computation_time = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
+            self.init_evaluated_methods()
 
         elif task == 'cluster':
+            self.save_name = exp_cfg.record_path + '-'.join([self.data_name, self.task, str(self.n_genes)]) + '.pkl'
+
             self.MRR = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
             self.markers_found = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
 
             self.seurat_ARI = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
             self.sc3_ARI = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
 
+            if self.cell_type_counts[0] >= cluster_cfg.n_folds * 2:
+                self.rare_type = self.cell_type_counts.index[0]
+                self.seurat_F1_rare = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
+                self.sc3_F1_rare = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
+
             self.computation_time = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
+            self.init_evaluated_methods()
 
         else:
             raise ValueError(f"{task} is an invalid argument.")
@@ -58,18 +70,40 @@ class PerformanceRecorder:
         self.current_fold = None
         self.current_method = None
         self.save_cmpt_time = None
+
         self.start_time = 0
         self.show_dataset_info()
+
+    def init_evaluated_methods(self):
+        try:
+            with open(self.save_name, 'rb') as f:
+                former_record = pickle.load(f)
+            for prop in [item for item in dir(former_record) if not item.startswith('_')]:
+                former_df = getattr(former_record, prop)
+                if isinstance(former_df, pd.DataFrame):
+                    if self.former_methods is None:
+                        self.former_methods = former_df.columns.tolist()
+                    else:
+                        if former_df.columns.tolist() != self.former_methods:
+                            raise RuntimeError(f"{prop} with methods {former_df.columns.tolist()}"
+                                               f" are not equal to {self.former_methods}")
+                    getattr(self, prop).loc[:, np.intersect1d(self.methods, former_df.columns.tolist())] = former_df
+        except FileNotFoundError:
+            pass
 
     def init_current_feature_selection_method(self, method: str, fold: int):
         delete('tempData/')
         head(name=method, fold=fold + 1)
-        self.current_method = method
-        self.current_fold = fold
-        self.save_cmpt_time = True
-        if '+' in method:
-            self.base_methods = method.split('+')
-            self.count_base_method = 0
+        if self.former_methods is not None and method in self.former_methods:  # there is a former record
+            print(f"This method has been evaluated on {self.data_name.capitalize()} dataset and will be ignored.")
+            pass
+        else:
+            self.current_method = method
+            self.current_fold = fold
+            self.save_cmpt_time = True
+            if '+' in method:
+                self.base_methods = method.split('+')
+                self.count_base_method = 0
 
     def show_dataset_info(self):
         head(name='Dataset Information')
@@ -93,7 +127,14 @@ class PerformanceRecorder:
         self.markers_found.loc[self.current_fold, self.current_method] = markers_found
         self.MRR.loc[self.current_fold, self.current_method] = MRR
 
-    def get_mask(self, all_genes: np.ndarray, single_selected_result: tuple):
+    def get_mask(self, all_genes: np.ndarray, single_selected_result: tuple) -> np.ndarray:
+        """
+        Get the mask that indicates which genes are selected.
+
+        :param all_genes: all gene names
+        :param single_selected_result: the result of selection
+        :return: a bool array
+        """
         selected_genes = single_selected_result[0]
         mask = np.isin(all_genes, single_selected_result[0])
         selected_markers_num = mask.sum()
@@ -216,8 +257,9 @@ class PerformanceRecorder:
         :return: None
         """
         print(f"{self.current_method} reached maximum computation time.")
-        for metric in ['MRR', 'markers_found', 'scmap_cluster_F1', 'scmap_cell_F1', 'scmap_cell_F1', 'singleR_F1',
-                       'scmap_cluster_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare', 'seurat_ARI', 'sc3_ARI']:
+        for metric in ['MRR', 'markers_found', 'singlecellnet_F1', 'scmap_cell_F1', 'scmap_cell_F1', 'singleR_F1',
+                       'singlecellnet_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare', 'seurat_ARI', 'sc3_ARI',
+                       'seurat_F1_rare', 'sc3_F1_rare']:
             if hasattr(self, metric):
                 getattr(self, metric).loc[self.current_fold, self.current_method] = 0
         if assign_cfg.method_lan[self.current_method] == 'python':  # actually only scGeneFit
@@ -236,11 +278,13 @@ class PerformanceRecorder:
         :return: summary
         """
         if self.task == 'assign':
-            index = ['MRR', 'markers_found', 'computation_time', 'scmap_cluster_F1', 'scmap_cell_F1', 'singleR_F1']
+            index = ['MRR', 'markers_found', 'computation_time', 'singlecellnet_F1', 'scmap_cell_F1', 'singleR_F1']
             if hasattr(self, 'rare_type'):
-                index += ['scmap_cluster_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare']
+                index += ['singlecellnet_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare']
         else:
             index = ['MRR', 'markers_found', 'computation_time', 'seurat_ARI', 'sc3_ARI']
+            if hasattr(self, 'rare_type'):
+                index += ['seurat_F1_rare', 'sc3_F1_rare']
         summary = pd.DataFrame(data=np.zeros((len(index), len(self.methods))), index=index, columns=self.methods)
         for idx in index:  # .mean(axis=0)
             if hasattr(self, idx):
@@ -260,9 +304,8 @@ class PerformanceRecorder:
 
         :return: None
         """
-        file_path = exp_cfg.record_path + '-'.join([self.data_name, self.task, str(self.n_genes)]) + '.pkl'
         self.adata = None  # do not save anndata
-        with open(file_path, 'wb') as f:
+        with open(self.save_name, 'wb') as f:
             pickle.dump(self, f)
         print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "
-              f"Finished and saved record to {file_path}\n\n\n")  # UTC + 8 hours = Beijing time
+              f"Finished and saved record to {self.save_name}\n\n\n")  # UTC + 8 hours = Beijing time
