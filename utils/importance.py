@@ -72,7 +72,7 @@ def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
     """
     assert recorder is not None and config is not None, "recorder and config must exist."
     if config.method_lan[method] == 'python':  # python
-        y, all_features = adata.obs['type'].values, adata.var_names.values
+        y, all_features = adata.obs['celltype'].values, adata.var_names.values
         if config.method_on[method] == 'raw':
             X = adata.raw.X
             adata = adata.raw.to_adata()
@@ -109,7 +109,7 @@ def select_features(feature_num: int, method: str, adata: ad.AnnData = None,
             print('best score:{}, best threshold:{}'.format(gs.best_score_, gs.best_params_['shrink_threshold']))
             importance = nearest_centroid_select(X, y, shrink_threshold=gs.best_params_['shrink_threshold'])
         elif method == 'DE':
-            sc.tl.rank_genes_groups(adata, groupby='type', use_raw=False, method='wilcoxon')
+            sc.tl.rank_genes_groups(adata, groupby='celltype', use_raw=False, method='wilcoxon')
             names = pd.DataFrame(adata.uns['rank_genes_groups']['names']).values
             scores = pd.DataFrame(adata.uns['rank_genes_groups']['scores']).values
             importance = np.array([scores[names == gene].max() for gene in adata.var_names])

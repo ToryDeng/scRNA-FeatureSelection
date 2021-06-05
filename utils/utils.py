@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import warnings
 from typing import Optional
 
@@ -87,7 +88,7 @@ def load_data(data_name: str) -> ad.AnnData:
         raise ValueError(f"data name {data_name} is wrong!")
     os.chdir("../../scRNA-FeatureSelection")  # return to scRNA-FeatureSelection dir
     count_matrix, labels = data.iloc[:, :-1].round(), data.iloc[:, -1]
-    count_matrix.columns, labels.name = get_gene_names(count_matrix.columns), "type"
+    count_matrix.columns, labels.name = get_gene_names(count_matrix.columns), "celltype"
 
     adata = ad.AnnData(X=count_matrix, obs=labels.to_frame())
     adata.obs_names_make_unique(join='.')
@@ -134,15 +135,15 @@ def save_data(adata_train: Optional[ad.AnnData] = None, adata_test: Optional[ad.
     if task == 'assign':
         if adata_train is not None:
             adata_train.to_df().to_csv('tempData/temp_X_train.csv')
-            adata_train.obs['type'].to_csv('tempData/temp_y_train.csv')
+            adata_train.obs['celltype'].to_csv('tempData/temp_y_train.csv')
         if adata_test is not None:
             adata_test.to_df().to_csv('tempData/temp_X_test.csv')
-            adata_test.obs['type'].to_csv('tempData/temp_y_test.csv')
+            adata_test.obs['celltype'].to_csv('tempData/temp_y_test.csv')
         if adata_train is None and adata_test is None:
             raise ValueError("adata_train and adata_test are both None.")
     else:
         adata_train.to_df().to_csv('tempData/temp_X.csv')
-        adata_train.obs['type'].to_csv('tempData/temp_y.csv')
+        adata_train.obs['celltype'].to_csv('tempData/temp_y.csv')
 
 
 def head(name: str, fold='', head_len=65):
@@ -184,3 +185,17 @@ def f1_score_cluster(true_label, pred_label):
     precision = matrix[1, 1] / (matrix[1, 1] + matrix[0, 1])  # TP/(TP + FP)
     recall = matrix[1, 1] / (matrix[1, 1] + matrix[1, 0])  # TP / (TP + FN)
     return 2 * precision * recall / (precision + recall)
+
+
+class HiddenPrints:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        self._original_stderr = sys.stderr
+        sys.stdout = open(os.devnull, 'w')
+        sys.stderr = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stderr.close()
+        sys.stdout = self._original_stdout
+        sys.stderr = self._original_stderr

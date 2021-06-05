@@ -250,6 +250,16 @@ class PerformanceVisualizer:
         plt.savefig(self.save_dir + file_name, dpi=150, bbox_inches='tight')
         plt.show()
 
+    def plot_markers_found_rate(self, min_quantile: float = 0.1):
+        table = pd.DataFrame(np.zeros((len(self.n_genes), len(self.task_methods))), index=self.n_genes)
+        for n_gene in self.n_genes:
+            for dataset in self.datasets:
+                record = self.task_records[dataset + '-' + n_gene]
+                table.loc[n_gene, :] = record.markers_found.mean(axis=0) / record.n_marker_contain
+        table /= len(self.datasets)
+        table.plot()
+        plt.show()
+
     def plot_all(self):
         shared_metrics = ['markers_found', 'MRR']
         if self.task == 'assign':
@@ -263,4 +273,3 @@ class PerformanceVisualizer:
             self.plot_box(metric)
         self.plot_task_bar(shared_metric=True)
         self.plot_task_bar()
-

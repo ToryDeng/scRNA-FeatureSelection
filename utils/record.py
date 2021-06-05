@@ -23,7 +23,7 @@ class PerformanceRecorder:
         self.task = task
         self.methods = methods
         self.adata = adata
-        self.cell_type_counts = adata.obs['type'].value_counts(ascending=True)
+        self.cell_type_counts = adata.obs['celltype'].value_counts(ascending=True)
         self.n_marker_contain = adata.uns['markers'].shape[0]
         self.n_genes = exp_cfg.n_genes
         self.former_methods = None
@@ -37,12 +37,15 @@ class PerformanceRecorder:
             self.singlecellnet_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
             self.scmap_cell_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
             self.singleR_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
+            self.itclust_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
 
             if self.cell_type_counts[0] >= assign_cfg.n_folds * 2:  # to ensure that each fold contains rare cells
                 self.rare_type = self.cell_type_counts.index[0]
+
                 self.singlecellnet_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
                 self.scmap_cell_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
                 self.singleR_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
+                self.itclust_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
 
             self.computation_time = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
             self.init_evaluated_methods()
@@ -108,7 +111,7 @@ class PerformanceRecorder:
     def show_dataset_info(self):
         head(name='Dataset Information')
         print("Name:{:^15}  Cell(s):{:<5d}  Gene(s):{:<5d}  Marker Gene(s):{:<4d}\nCell Types:{}".format(
-            self.data_name, self.adata.n_obs, self.adata.n_vars, self.n_marker_contain, self.adata.obs['type'].unique()
+            self.data_name, self.adata.n_obs, self.adata.n_vars, self.n_marker_contain, self.adata.obs['celltype'].unique()
         ))
         if hasattr(self, 'rare_type'):
             print("Rare Cell Type:{:<20}  Rate:{:.2%}     Num:{}".format(
@@ -278,9 +281,9 @@ class PerformanceRecorder:
         :return: summary
         """
         if self.task == 'assign':
-            index = ['MRR', 'markers_found', 'computation_time', 'singlecellnet_F1', 'scmap_cell_F1', 'singleR_F1']
+            index = ['MRR', 'markers_found', 'computation_time', 'singlecellnet_F1', 'scmap_cell_F1', 'singleR_F1', 'itclust_F1']
             if hasattr(self, 'rare_type'):
-                index += ['singlecellnet_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare']
+                index += ['singlecellnet_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare', 'itclust_F1_rare']
         else:
             index = ['MRR', 'markers_found', 'computation_time', 'seurat_ARI', 'sc3_ARI']
             if hasattr(self, 'rare_type'):

@@ -58,7 +58,7 @@ class ClusterConfig(ExperimentConfig):
     def __init__(self):
         super().__init__()
         self.n_folds = 2
-        self.n_loops = 1  # 10 loops
+        self.n_loops = 10  # 10 loops
 
 
 class DataConfig:

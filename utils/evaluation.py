@@ -2,29 +2,35 @@ import os
 
 import numpy as np
 import scanpy as sc
+import anndata as ad
 from sklearn.metrics import adjusted_rand_score, classification_report
 from sklearn.model_selection import StratifiedKFold
 
 from config import assign_cfg, cluster_cfg, exp_cfg
 from utils.importance import select_genes
 from utils.record import PerformanceRecorder
+from utils.itclust import ItClust_predict
 from utils.utils import load_data, delete, save_data, filter_adata, f1_score_cluster
 
 
-def evaluate_assign_result(recorder: PerformanceRecorder = None):
+def evaluate_assign_result(recorder: PerformanceRecorder = None,
+                           adata_train: ad.AnnData = None,
+                           adata_test: ad.AnnData = None) -> dict:
     """
     Evaluate assign result using the F1-scores generating from three assign methods.
 
     :return: a dict containing F1-scores of three assign methods
     """
-    print(os.getcwd())
     os.system('Rscript utils/RCode/classification.R >& /dev/null')
     assign_result = dict()
     label_test = np.loadtxt('tempData/temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object_)[:, 1]
-    for assign_method in ['singlecellnet', 'scmap_cell', 'singleR']:
-        label_pred = np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']), delimiter=',', skiprows=1,
-                                dtype=np.str_)
-        if label_pred.shape[0] == 0:
+    for assign_method in ['singlecellnet', 'scmap_cell', 'singleR', 'itclust']:
+        if assign_method == 'itclust':
+            label_pred = ItClust_predict(train_data=adata_train, test_data=adata_test)
+        else:
+            label_pred = np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']), delimiter=',', skiprows=1,
+                                    dtype=np.str_)
+        if label_pred.shape[0] == 0:  # label_pred is an empty array
             print(f"{assign_method} failed. Set F1 to 0.")
             f1_all, f1_rare = 0, 0
         else:
@@ -38,7 +44,7 @@ def evaluate_assign_result(recorder: PerformanceRecorder = None):
     return assign_result
 
 
-def evaluate_cluster_result(recorder: PerformanceRecorder = None):
+def evaluate_cluster_result(recorder: PerformanceRecorder = None) -> dict:
     """
     Evaluate clustering result using the ARI generating from two clustering methods.
 
@@ -60,7 +66,7 @@ def evaluate_cluster_result(recorder: PerformanceRecorder = None):
     return cluster_result
 
 
-def evaluate_assign_methods(dataset: str, methods: list):
+def evaluate_assign_methods(dataset: str, methods: list) -> None:
     """
     Only this function can handle Timeout error because scGeneFit is a supervised method.
 
@@ -73,7 +79,7 @@ def evaluate_assign_methods(dataset: str, methods: list):
     recorder = PerformanceRecorder(task='assign', data_name=dataset, adata=adata, methods=methods)
 
     skf = StratifiedKFold(n_splits=assign_cfg.n_folds, random_state=assign_cfg.random_seed, shuffle=True)
-    for i, (train_idx, test_idx) in enumerate(skf.split(adata.X, adata.obs['type'].values)):
+    for i, (train_idx, test_idx) in enumerate(skf.split(adata.X, adata.obs['celltype'].values)):
         # clean directory
         delete('tempData/')
         # split train and test data
@@ -98,20 +104,20 @@ def evaluate_assign_methods(dataset: str, methods: list):
                 selected_train = filter_adata(adata_train.raw[:, marker_mask].to_adata(), filter_cell=True)
                 selected_test = filter_adata(adata_test.raw[:, marker_mask].to_adata(), filter_cell=True)
                 save_data(selected_train, selected_test)
-                assign_metric = evaluate_assign_result(recorder)
+                assign_metric = evaluate_assign_result(recorder, selected_train, selected_test)
                 recorder.record_metrics_from_dict(assign_metric)
     recorder.summary(save=True, show=True)
     recorder.save()
 
 
-def evaluate_cluster_methods(dataset: str, methods: list):
+def evaluate_cluster_methods(dataset: str, methods: list) -> None:
     # load raw and norm data
     adata = load_data(dataset)
     recorder = PerformanceRecorder(task='cluster', data_name=dataset, adata=adata, methods=methods)
 
     for i in range(cluster_cfg.n_loops):
         skf = StratifiedKFold(n_splits=cluster_cfg.n_folds, random_state=cluster_cfg.random_seed + i, shuffle=True)
-        left_index, right_index = list(skf.split(adata.X, adata.obs['type'].values))[0]
+        left_index, right_index = list(skf.split(adata.X, adata.obs['celltype'].values))[0]
 
         # remove const genes before feature selection
         adata_left = filter_adata(adata[left_index], filter_gene=True, filter_cell=True)
