@@ -20,9 +20,9 @@ class ExperimentConfig:
         }
         self.random_seed = 2020
         self.scale_factor = 1e4
-        self.n_filter_cell = 3
-        self.n_filter_gene = 3
-        self.n_genes = 2000  # TODO: sim 1000 genes
+        self.n_filter_cell = 5
+        self.n_filter_gene = 5
+        self.n_genes = [500, 1000, 1500, 2000]
         self.max_timeout = 60 * 30  # 60 seconds per minute * 30 minutes
         self.ensemble_mode = 'importance_sum'
 
@@ -58,7 +58,8 @@ class ClusterConfig(ExperimentConfig):
     def __init__(self):
         super().__init__()
         self.n_folds = 2
-        self.n_loops = 10  # 10 loops
+        self.n_loops = 2  # 10 loops
+        self.rare_type_detection_metric = 'bcubed'  # f-measure
 
 
 class DataConfig:
@@ -68,6 +69,7 @@ class DataConfig:
 
         # PBMC
         self.PBMC_path = "/volume/scRNA/python_data/PBMC_AllCells_withLabels.h5"
+        self.PBMC3K_path = "/home/tdeng/SingleCell/data/PBMC/pbmc3k_raw.h5ad"
         self.PBMC_markers_path = "/home/tdeng/SingleCell/data/PBMC/"
 
         # pancreas

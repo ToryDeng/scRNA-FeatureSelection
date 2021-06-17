@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from sklearn.model_selection import train_test_split
-from sklearn.metrics.cluster import pair_confusion_matrix
 
 from config import data_cfg, exp_cfg
 
@@ -47,7 +46,6 @@ def load_data(data_name: str) -> ad.AnnData:
     """
     sc.settings.verbosity = 1
     if data_name[:4] == 'PBMC':
-        assert len(data_name) >= 4, ValueError("parameter 'data_name' is wrong!")
         data = pd.read_hdf(data_cfg.PBMC_path, key="AllCells")
         if len(data_name) > 4:
             if data_name[4:-1].isdigit() and data_name[-1] == '%':
@@ -178,13 +176,6 @@ def filter_adata(adata: ad.AnnData, filter_gene: bool = False, filter_cell: bool
 def normalize_importances(importances: np.ndarray) -> np.ndarray:
     min_importance, max_importance = np.min(importances), np.max(importances)
     return (importances - min_importance) / (max_importance - min_importance)
-
-
-def f1_score_cluster(true_label, pred_label):
-    matrix = pair_confusion_matrix(true_label, pred_label)  # [[TN, FP], [FN, TP]]
-    precision = matrix[1, 1] / (matrix[1, 1] + matrix[0, 1])  # TP/(TP + FP)
-    recall = matrix[1, 1] / (matrix[1, 1] + matrix[1, 0])  # TP / (TP + FN)
-    return 2 * precision * recall / (precision + recall)
 
 
 class HiddenPrints:

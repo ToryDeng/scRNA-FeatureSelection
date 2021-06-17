@@ -17,7 +17,7 @@ class PerformanceRecorder:
     (F1: 5 folds; ARI: 2 splits, 5 folds respectively)
     """
 
-    def __init__(self, task: str, data_name: str, methods: List[str], adata: ad.AnnData):
+    def __init__(self, task: str, data_name: str, methods: List[str], adata: ad.AnnData, n_gene: int = 1000):
 
         self.data_name = data_name
         self.task = task
@@ -25,7 +25,7 @@ class PerformanceRecorder:
         self.adata = adata
         self.cell_type_counts = adata.obs['celltype'].value_counts(ascending=True)
         self.n_marker_contain = adata.uns['markers'].shape[0]
-        self.n_genes = exp_cfg.n_genes
+        self.n_genes = n_gene
         self.former_methods = None
 
         if task == 'assign':
@@ -35,7 +35,6 @@ class PerformanceRecorder:
             self.markers_found = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
 
             self.singlecellnet_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
-            self.scmap_cell_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
             self.singleR_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
             self.itclust_F1 = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
 
@@ -43,7 +42,6 @@ class PerformanceRecorder:
                 self.rare_type = self.cell_type_counts.index[0]
 
                 self.singlecellnet_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
-                self.scmap_cell_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
                 self.singleR_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
                 self.itclust_F1_rare = pd.DataFrame(np.zeros((assign_cfg.n_folds, len(methods))), columns=methods)
 
@@ -58,11 +56,14 @@ class PerformanceRecorder:
 
             self.seurat_ARI = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
             self.sc3_ARI = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
+            self.cidr_ARI = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
 
             if self.cell_type_counts[0] >= cluster_cfg.n_folds * 2:
                 self.rare_type = self.cell_type_counts.index[0]
+
                 self.seurat_F1_rare = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
                 self.sc3_F1_rare = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
+                self.cidr_F1_rare = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
 
             self.computation_time = pd.DataFrame(np.zeros((cluster_cfg.n_loops, len(methods))), columns=methods)
             self.init_evaluated_methods()
@@ -75,7 +76,6 @@ class PerformanceRecorder:
         self.save_cmpt_time = None
 
         self.start_time = 0
-        self.show_dataset_info()
 
     def init_evaluated_methods(self):
         try:
@@ -111,7 +111,8 @@ class PerformanceRecorder:
     def show_dataset_info(self):
         head(name='Dataset Information')
         print("Name:{:^15}  Cell(s):{:<5d}  Gene(s):{:<5d}  Marker Gene(s):{:<4d}\nCell Types:{}".format(
-            self.data_name, self.adata.n_obs, self.adata.n_vars, self.n_marker_contain, self.adata.obs['celltype'].unique()
+            self.data_name, self.adata.n_obs, self.adata.n_vars, self.n_marker_contain,
+            self.adata.obs['celltype'].unique()
         ))
         if hasattr(self, 'rare_type'):
             print("Rare Cell Type:{:<20}  Rate:{:.2%}     Num:{}".format(
@@ -143,8 +144,8 @@ class PerformanceRecorder:
         selected_markers_num = mask.sum()
         if selected_markers_num == 0:
             raise RuntimeError("No gene is selected!")
-        if selected_markers_num < exp_cfg.n_genes:
-            msg = f"{self.current_method} selected {selected_markers_num} genes, not {exp_cfg.n_genes}. "
+        if selected_markers_num < self.n_genes:
+            msg = f"{self.current_method} selected {selected_markers_num} genes, not {self.n_genes}. "
             if selected_markers_num < selected_genes.shape[0]:
                 msg += f"Some selected genes are not used: {np.setdiff1d(selected_genes, all_genes)}"
             warnings.warn(msg)
@@ -171,6 +172,55 @@ class PerformanceRecorder:
             warnings.warn("The method can't obtain gene importance! MRR is set to 0.", RuntimeWarning)
             MRR = 0
         return markers_found, MRR
+
+    def fbeta_score(self, labels_true: np.ndarray, labels_pred: np.ndarray, beta=1.0):
+        """
+        In rare cell type detection, f-score becomes a harmonic average of P and R when beta == 1.0.
+
+        :param labels_true: category annotation
+        :param labels_pred: cluster annotation
+        :param beta: the weighted hyperparameter
+        :return: f-measure
+        """
+        assert labels_true.shape[0] == labels_pred.shape[0], \
+            ValueError(
+                f"length of labels_true({labels_true.shape[0]} and length of labels_pred({labels_pred.shape[0]}) "
+                f"are inconsistent.")
+        rare_type_mask = labels_true == self.rare_type
+        F_score = []
+        for cluster in np.unique(labels_pred[rare_type_mask]):  # clusters that rare cells are divided to
+            cluster_mask = labels_pred == cluster
+            cluster_true = labels_true[cluster_mask]
+            # TP, P, R, F-beta
+            n_true_positive = np.sum(cluster_true == self.rare_type)
+            precision = n_true_positive / np.sum(cluster_mask)
+            recall = n_true_positive / np.sum(rare_type_mask)
+            F_score.append((beta ** 2 + 1) * precision * recall / (beta ** 2 * precision + recall))
+        return max(F_score)
+
+    def BCubed_score(self, labels_true, labels_pred, beta=1.0):
+        """
+        In rare cell type detection, BCubed_score is better than f-measure
+
+        :param labels_true: category annotation
+        :param labels_pred: cluster annotation
+        :param beta: the weighted hyperparameter
+        :return: BCubed score
+        """
+        rare_type_mask = labels_true == self.rare_type
+        rare_cell_num = np.sum(rare_type_mask)
+        precision, recall = [], []
+        for cluster in np.unique(labels_pred[rare_type_mask]):  # clusters that rare cells are divided to
+            cluster_mask = labels_pred == cluster
+            cluster_true = labels_true[cluster_mask]
+
+            n_true_positive = np.sum(cluster_true == self.rare_type)
+            precision.append(n_true_positive ** 2 / np.sum(cluster_mask))
+            recall.append(n_true_positive ** 2 / rare_cell_num)
+
+        ave_precision, ave_recall = np.sum(precision) / rare_cell_num, np.sum(recall) / rare_cell_num
+        fbeta_BCubed = (beta ** 2 + 1) * ave_precision * ave_recall / (beta ** 2 * ave_precision + ave_recall)
+        return fbeta_BCubed
 
     def cmpt_time_start(self):
         """
@@ -260,8 +310,8 @@ class PerformanceRecorder:
         :return: None
         """
         print(f"{self.current_method} reached maximum computation time.")
-        for metric in ['MRR', 'markers_found', 'singlecellnet_F1', 'scmap_cell_F1', 'scmap_cell_F1', 'singleR_F1',
-                       'singlecellnet_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare', 'seurat_ARI', 'sc3_ARI',
+        for metric in ['MRR', 'markers_found', 'singlecellnet_F1', 'singleR_F1',
+                       'singlecellnet_F1_rare', 'singleR_F1_rare', 'seurat_ARI', 'sc3_ARI',
                        'seurat_F1_rare', 'sc3_F1_rare']:
             if hasattr(self, metric):
                 getattr(self, metric).loc[self.current_fold, self.current_method] = 0
@@ -281,13 +331,13 @@ class PerformanceRecorder:
         :return: summary
         """
         if self.task == 'assign':
-            index = ['MRR', 'markers_found', 'computation_time', 'singlecellnet_F1', 'scmap_cell_F1', 'singleR_F1', 'itclust_F1']
+            index = ['MRR', 'markers_found', 'computation_time', 'singlecellnet_F1', 'singleR_F1', 'itclust_F1']
             if hasattr(self, 'rare_type'):
-                index += ['singlecellnet_F1_rare', 'scmap_cell_F1_rare', 'singleR_F1_rare', 'itclust_F1_rare']
+                index += ['singlecellnet_F1_rare', 'singleR_F1_rare', 'itclust_F1_rare']
         else:
-            index = ['MRR', 'markers_found', 'computation_time', 'seurat_ARI', 'sc3_ARI']
+            index = ['MRR', 'markers_found', 'computation_time', 'seurat_ARI', 'sc3_ARI', 'cidr_ARI']
             if hasattr(self, 'rare_type'):
-                index += ['seurat_F1_rare', 'sc3_F1_rare']
+                index += ['seurat_F1_rare', 'sc3_F1_rare', 'cidr_F1_rare']
         summary = pd.DataFrame(data=np.zeros((len(index), len(self.methods))), index=index, columns=self.methods)
         for idx in index:  # .mean(axis=0)
             if hasattr(self, idx):
