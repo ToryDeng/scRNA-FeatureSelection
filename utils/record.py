@@ -198,13 +198,13 @@ class PerformanceRecorder:
             F_score.append((beta ** 2 + 1) * precision * recall / (beta ** 2 * precision + recall))
         return max(F_score)
 
-    def BCubed_score(self, labels_true, labels_pred, beta=1.0):
+    def BCubed_score(self, labels_true: np.ndarray, labels_pred: np.ndarray, beta=1.0):
         """
         In rare cell type detection, BCubed_score is better than f-measure
 
         :param labels_true: category annotation
         :param labels_pred: cluster annotation
-        :param beta: the weighted hyperparameter
+        :param beta: the weighting hyperparameter
         :return: BCubed score
         """
         rare_type_mask = labels_true == self.rare_type
@@ -215,8 +215,8 @@ class PerformanceRecorder:
             cluster_true = labels_true[cluster_mask]
 
             n_true_positive = np.sum(cluster_true == self.rare_type)
-            precision.append(n_true_positive ** 2 / np.sum(cluster_mask))
-            recall.append(n_true_positive ** 2 / rare_cell_num)
+            precision.append(n_true_positive ** 2 / np.sum(cluster_mask))  # sum of precision in this cluster
+            recall.append(n_true_positive ** 2 / rare_cell_num)  # sum of recall in this cluster
 
         ave_precision, ave_recall = np.sum(precision) / rare_cell_num, np.sum(recall) / rare_cell_num
         fbeta_BCubed = (beta ** 2 + 1) * ave_precision * ave_recall / (beta ** 2 * ave_precision + ave_recall)

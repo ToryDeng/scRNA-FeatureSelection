@@ -28,14 +28,15 @@ import os
 
 
 def most_important_genes(importances: Optional[np.ndarray],
-                         all_features: Union[np.ndarray, List[Tuple]],
+                         all_features: Union[np.ndarray, List[Tuple]]
                          ) -> List[Tuple]:
     """
     Select max feature_num important genes according to importance array.
 
     :param importances: importance of each gene
     :param all_features: names of all genes
-    :return: list of the most important genes and importance of which number equals to the corresponding element in experiment config
+    :return: list of the most important genes and importance of which number equals to
+    the corresponding element in experiment configuration
     """
     if importances is None:
         return all_features
@@ -53,7 +54,20 @@ def most_important_genes(importances: Optional[np.ndarray],
         return fea_impo_list
 
 
-def execute_Rscript(data_name: str, method: str, feature_num=2000, show_detail: bool = False) -> str:
+def execute_Rscript(data_name: str,
+                    method: str,
+                    feature_num=2000,
+                    show_detail: bool = False
+                    ) -> str:
+    """
+    Execute R script for methods in R.
+
+    :param data_name: the dataset name
+    :param method: feature selection method
+    :param feature_num: number of features
+    :param show_detail: whether to show details during execution
+    :return: path of selected markers
+    """
     cmd = ['Rscript utils/RCode/select_markers.R', data_name, method, str(feature_num)]
     if not show_detail:
         cmd.append('>& /dev/null')
@@ -65,10 +79,20 @@ def execute_Rscript(data_name: str, method: str, feature_num=2000, show_detail: 
 
 @timeout_decorator.timeout(seconds=exp_cfg.max_timeout)
 def cal_feature_importance(method: str,
-                           adata: Optional[ad.AnnData],
-                           recorder: Optional[PerformanceRecorder],
-                           config: Optional[Union[AssignConfig, ClusterConfig]]
+                           adata: ad.AnnData,
+                           recorder: PerformanceRecorder,
+                           config: Union[AssignConfig, ClusterConfig]
                            ):
+    """
+    Calculate importance of each feature using specified method.
+    If running time is over the given seconds, this function will raise TimeoutError.
+
+    :param method: feature selection method
+    :param adata: the anndata instance containing raw and norm data
+    :param recorder: performance recorder
+    :param config: assign configuration or cluster configuration
+    :return: importances and feature names, respectively.
+    """
     assert recorder is not None and config is not None, "recorder and config must exist."
     if config.method_lan[method] == 'python':  # python
         y, all_features = adata.obs['celltype'].values, adata.var_names.values
@@ -152,10 +176,19 @@ def cal_feature_importance(method: str,
 
 
 def select_genes(method: str,
-                 adata: Optional[ad.AnnData],
-                 recorders: Optional[List[PerformanceRecorder]],
-                 config: Optional[Union[AssignConfig, ClusterConfig]]
+                 adata: ad.AnnData,
+                 recorders: List[PerformanceRecorder],
+                 config: Union[AssignConfig, ClusterConfig]
                  ):
+    """
+    Run ensemble selection method or single selection method according to the method name.
+
+    :param method: feature selection method
+    :param adata: the anndata instance containing raw and norm data
+    :param recorders: list of performance recorders
+    :param config: assign configuration or cluster configuration
+    :return: importances and feature names, respectively.
+    """
     try:
         if '+' in method:  # ensemble learning
             base_methods = method.split('+')

@@ -7,5 +7,6 @@ cluster_methods = ['cv2', 'var',  'm3drop',  'seurat', 'deviance', 'seurat+devia
 
 #
 for dataset in ['xin', 'muraro', 'segerstolpe', 'PBMC3000']:
-    evaluate_assign_methods(dataset=dataset, methods=assign_methods)
+    if dataset != 'xin':
+        evaluate_assign_methods(dataset=dataset, methods=assign_methods)
     evaluate_cluster_methods(dataset=dataset, methods=cluster_methods)
