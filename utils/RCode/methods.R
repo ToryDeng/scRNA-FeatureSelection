@@ -144,8 +144,8 @@ assign.singleR <- function(train_data, test_data, exp_config=NULL){
   m_config <- if(purrr::is_null(exp_config$batch_free) || !exp_config$batch_free || !exists("methods.config.singleR.batch_free")) methods.config.singleR else methods.config.singleR.batch_free
   stopifnot(is(train_data,"SingleCellExperiment"))
   stopifnot(is(test_data,"SingleCellExperiment"))
-  train_data <- logNormCounts(train_data) 
-  test_data <- logNormCounts(test_data) 
+  train_data <- scater::logNormCounts(train_data) 
+  test_data <- scater::logNormCounts(test_data) 
   preds <- SingleR(test=test_data, ref=train_data, labels=train_data$label, de.method="wilcox")
   preds$labels
 }
@@ -238,8 +238,10 @@ cluster.liger <- function(data){
 
 
 ### CIDR
-cluster.cidr <- function(counts, K) {
+cluster.cidr <- function(counts) {
   require(cidr)
+  K <- length(unique(counts@colData@listData[["label"]]))
+  
   sData <- scDataConstructor(counts(counts))
   sData <- determineDropoutCandidates(sData)
   sData <- wThreshold(sData)

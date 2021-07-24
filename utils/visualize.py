@@ -17,12 +17,13 @@ class PerformanceVisualizer:
         assert task in ('assign', 'cluster'), ValueError(f"{task} is an invalid argument.")
         self.record_path = exp_cfg.record_path
         self.task = task
-        self.record_names = [f for f in os.listdir(self.record_path) if f.endswith('pkl') and f.split('-')[1] == task]
+        self.record_names = [file for file in os.listdir(self.record_path)
+                             if file.endswith('pkl') and file.split('-')[1] == task]
         self.task_records = self.load_record(self.record_names)  # {dataset-n_gene: record}
         self.save_dir = exp_cfg.figure_path
 
         self.datasets = np.unique([file[:-4].split('-')[0] for file in self.record_names])
-        self.n_genes = np.unique([file[:-4].split('-')[2] for file in self.record_names])
+        self.n_genes = sorted(np.unique([file[:-4].split('-')[2] for file in self.record_names]), key=lambda x: int(x))
 
         if task == 'assign':
             self.task_methods = self.task_records[self.datasets[0] + '-' + self.n_genes[0]].singleR_F1.columns.tolist()
@@ -40,6 +41,42 @@ class PerformanceVisualizer:
             else:
                 warnings.warn("file_name doesn't have an element. Return null dict.")
                 return dict()
+
+    def plot_lines(self, metric: str = 'markers_found'):
+        fig, ax = plt.subplots(figsize=(9 if self.task == 'assign' else 7, 5))
+        drop_methods = ['scGeneFit', 'cv2'] if self.task == 'assign' else ['cv2']
+        spec_gene_table = pd.DataFrame(np.zeros(shape=(len(self.n_genes), len(self.task_methods))),
+                                       index=self.n_genes, columns=self.task_methods).drop(columns=drop_methods)
+        for dataset in self.datasets:
+            for n_gene in self.n_genes:
+                record = self.task_records[dataset + '-' + n_gene]
+                if metric == 'markers_found':
+                    spec_gene_table.loc[n_gene, :] += record.summary().drop(columns=drop_methods).loc[metric, :]
+                else:
+                    if self.task == 'assign':
+                        spec_gene_table.loc[n_gene, :] += record.summary().drop(columns=drop_methods).loc['singlecellnet_F1', :]
+                        spec_gene_table.loc[n_gene, :] += record.summary().drop(columns=drop_methods).loc['singleR_F1', :]
+                        spec_gene_table.loc[n_gene, :] += record.summary().drop(columns=drop_methods).loc['itclust_F1', :]
+                    else:
+                        spec_gene_table.loc[n_gene, :] += record.summary().drop(columns=drop_methods).loc['seurat_ARI', :]
+                        spec_gene_table.loc[n_gene, :] += record.summary().drop(columns=drop_methods).loc['sc3_ARI', :]
+                        spec_gene_table.loc[n_gene, :] += record.summary().drop(columns=drop_methods).loc['cidr_ARI', :]
+
+        if metric == 'markers_found':
+            spec_gene_table = spec_gene_table.div(len(self.datasets) * pd.Series(self.n_genes, index=spec_gene_table.index).astype(np.float_), axis=0)
+            ylabel, title = 'The percentage of marker genes', None
+        else:
+            spec_gene_table = spec_gene_table.div(len(self.datasets) * 3)
+            ylabel = 'The average F1-score' if self.task == 'assign' else 'The average ARI'
+        spec_gene_table.rename(columns=formal_method_names, inplace=True)
+        spec_gene_table.plot(marker='.', linestyle='--', linewidth=1.5, cmap='tab20', ax=ax,
+                             xlabel='Number of selected genes', ylabel=ylabel)
+        ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.3), ncol=6 if self.task == 'assign' else 4, frameon=False)
+        if metric == 'markers_found':
+            ax.yaxis.set_major_formatter(tick.PercentFormatter(xmax=1, decimals=0))
+        fig.set_tight_layout(True)
+        file_name = '-'.join([self.task, 'line']) + '.jpg'
+        plt.savefig(self.save_dir + file_name, dpi=120, bbox_inches='tight')
 
     def plot_metric_heatmap(self, metric='MRR'):
         if self.task == 'assign':

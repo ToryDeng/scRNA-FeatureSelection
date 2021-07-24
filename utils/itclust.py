@@ -18,7 +18,7 @@ def ItClust_predict(train_data: ad.AnnData, test_data: ad.AnnData) -> np.ndarray
 
     with HiddenPrints():
         clf = ic.transfer_learning_clf()
-        clf.fit(train_data, test_data, maxiter=100, verbose=True)
+        clf.fit(train_data, test_data, maxiter=200, pretrain_epochs=50, verbose=True)  # not print under HiddenPrints
         pred, prob, cell_type_pred = clf.predict(write=False)
 
     return pred.cluster.map({key: value[0] for key, value in cell_type_pred.items()}).values.astype(np.str_)

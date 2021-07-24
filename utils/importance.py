@@ -4,8 +4,8 @@ import anndata as ad
 import pandas as pd
 import timeout_decorator
 from utils.utils import get_gene_names, save_data, delete, normalize_importances
-from utils.record import PerformanceRecorder
-from config import AssignConfig, ClusterConfig, exp_cfg
+from utils.record import TimeRecorder
+from config import AssignConfig, ClusterConfig, exp_cfg, assign_cfg
 # tree models
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
@@ -16,12 +16,12 @@ import numpy as np
 # seurat
 import scanpy as sc
 # scGeneFit
-from models.scgenefit import get_importance
+from selection.scgenefit import get_importance
 # fisher score
-from models.fisher_score import fisher_score
+from selection.fisher_score import fisher_score
 # nearest shrunken centroid
 from sklearn.neighbors import NearestCentroid
-from models.nearest_centroid import nearest_centroid_select
+from selection.nearest_centroid import nearest_centroid_select
 from sklearn.model_selection import GridSearchCV
 # execute R methods
 import os
@@ -36,7 +36,7 @@ def most_important_genes(importances: Optional[np.ndarray],
     :param importances: importance of each gene
     :param all_features: names of all genes
     :return: list of the most important genes and importance of which number equals to
-    the corresponding element in experiment configuration
+    the corresponding element in experiment configuration (descending, not normalized)
     """
     if importances is None:
         return all_features
@@ -56,7 +56,7 @@ def most_important_genes(importances: Optional[np.ndarray],
 
 def execute_Rscript(data_name: str,
                     method: str,
-                    feature_num=2000,
+                    feature_num=exp_cfg.n_genes[-1],
                     show_detail: bool = False
                     ) -> str:
     """
@@ -68,7 +68,7 @@ def execute_Rscript(data_name: str,
     :param show_detail: whether to show details during execution
     :return: path of selected markers
     """
-    cmd = ['Rscript utils/RCode/select_markers.R', data_name, method, str(feature_num)]
+    cmd = ['Rscript utils/RCode/cal_feature_importance.R', data_name, method, str(feature_num)]
     if not show_detail:
         cmd.append('>& /dev/null')
     command = ' '.join(cmd)
@@ -80,7 +80,7 @@ def execute_Rscript(data_name: str,
 @timeout_decorator.timeout(seconds=exp_cfg.max_timeout)
 def cal_feature_importance(method: str,
                            adata: ad.AnnData,
-                           recorder: PerformanceRecorder,
+                           recorder: Optional[TimeRecorder],
                            config: Union[AssignConfig, ClusterConfig]
                            ):
     """
@@ -93,7 +93,7 @@ def cal_feature_importance(method: str,
     :param config: assign configuration or cluster configuration
     :return: importances and feature names, respectively.
     """
-    assert recorder is not None and config is not None, "recorder and config must exist."
+    assert config is not None, "config must exist."
     if config.method_lan[method] == 'python':  # python
         y, all_features = adata.obs['celltype'].values, adata.var_names.values
         if config.method_on[method] == 'raw':
@@ -101,9 +101,10 @@ def cal_feature_importance(method: str,
             adata = adata.raw.to_adata()
         else:
             X = adata.X
-        recorder.cmpt_time_start()
+        if recorder is not None:
+            recorder.py_method_start()
         if method == 'rf':  # random forest
-            forest = RandomForestClassifier(n_estimators=100, n_jobs=15, random_state=0, verbose=0).fit(X, y)
+            forest = RandomForestClassifier(n_jobs=15, random_state=0, verbose=0).fit(X, y)
             importance = forest.feature_importances_
         elif method == 'lgb':
             lgb = LGBMClassifier(n_jobs=15, random_state=0).fit(X, y)
@@ -116,6 +117,9 @@ def cal_feature_importance(method: str,
         elif method == 'seurat':
             sc.pp.highly_variable_genes(adata, flavor='seurat_v3', n_top_genes=exp_cfg.n_genes[-1])
             importance, all_features = adata.var.variances_norm.values, adata.var.variances_norm.index.values
+        elif method == 'cellranger':
+            sc.pp.highly_variable_genes(adata, flavor='cell_ranger', n_top_genes=exp_cfg.n_genes[-1])
+            importance, all_features = adata.var.dispersions_norm.values, adata.var.dispersions_norm.index.values
         elif method == 'var':
             importance = np.var(X, axis=0)
         elif method == 'cv2':
@@ -131,14 +135,11 @@ def cal_feature_importance(method: str,
             gs = GridSearchCV(NearestCentroid(), param_grid=th_dict, cv=3, scoring='balanced_accuracy').fit(X, y)
             print('best score:{}, best threshold:{}'.format(gs.best_score_, gs.best_params_['shrink_threshold']))
             importance = nearest_centroid_select(X, y, shrink_threshold=gs.best_params_['shrink_threshold'])
-        elif method == 'DE':
-            sc.tl.rank_genes_groups(adata, groupby='celltype', use_raw=False, method='wilcoxon')
-            names = pd.DataFrame(adata.uns['rank_genes_groups']['names']).values
-            scores = pd.DataFrame(adata.uns['rank_genes_groups']['scores']).values
-            importance = np.array([scores[names == gene].max() for gene in adata.var_names])
         else:
             raise NotImplementedError(f"{method} has not been implemented.")
-        recorder.cmpt_time_end()
+        if recorder is not None:
+            recorder.py_method_end()
+            recorder.record(adata.uns['data_name'], method)
     else:  # R
         # save data first
         if config.method_on[method] == 'raw':
@@ -147,47 +148,37 @@ def cal_feature_importance(method: str,
             save_data(adata, task='assign' if isinstance(config, AssignConfig) else 'cluster')
 
         if method == 'm3drop':
-            genes = pd.read_csv(execute_Rscript(adata.uns['data_name'], method), usecols=[1, 3]).sort_values(
-                by='p.value', ascending=True)
-            recorder.record_cmpt_time_from_csv()
+            genes = pd.read_csv(execute_Rscript(adata.uns['data_name'], method),
+                                usecols=[1, 3]
+                                ).sort_values(by='p.value', ascending=True)
             all_features, importance = get_gene_names(genes['Gene'].values), 1 - genes['p.value'].values
-        elif method == 'cellassign':
-            all_features, importance = [], None
-            for i, n_gene in enumerate(exp_cfg.n_genes):
-                gene_path = execute_Rscript(adata.uns['data_name'], method, n_gene)
-                if i == 0:  # only record time at first run
-                    recorder.record_cmpt_time_from_csv()
-                all_features.append(
-                    (get_gene_names(np.loadtxt(gene_path, dtype=np.object, delimiter=',', usecols=[0], skiprows=1)),)
-                )
         elif method == 'deviance':
-            gene_importance = np.loadtxt(execute_Rscript(adata.uns['data_name'], method), dtype=np.object_,
-                                         delimiter=',', usecols=[0, 1], skiprows=1)
-            recorder.record_cmpt_time_from_csv()
+            gene_importance = np.loadtxt(execute_Rscript(adata.uns['data_name'], method),
+                                         dtype=np.object_, delimiter=',', usecols=[0, 1], skiprows=1)
             all_features, importance = get_gene_names(gene_importance[:, 0]), gene_importance[:, 1].astype(np.float_)
-        elif method == 'monocle3':
-            gene_and_importance = pd.read_csv(execute_Rscript(adata.uns['data_name'], method),
-                                              usecols=['gene_id', 'pseudo_R2']).values
-            recorder.record_cmpt_time_from_csv()
-            all_features, importance = get_gene_names(gene_and_importance[:, 0]), gene_and_importance[:, 1]
+        elif method == 'scmap':
+            gene_importance = pd.read_csv(execute_Rscript(adata.uns['data_name'], method), usecols=[0, 2]).dropna()
+            all_features, importance = gene_importance.feature_symbol.values, gene_importance.scmap_scores.values
         else:
             raise NotImplementedError(f"{method} has not been implemented yet.")
+        if recorder is not None:
+            recorder.record(adata.uns['data_name'], method)
     return importance, all_features
 
 
 def select_genes(method: str,
                  adata: ad.AnnData,
-                 recorders: List[PerformanceRecorder],
-                 config: Union[AssignConfig, ClusterConfig]
+                 recorder: Optional[TimeRecorder] = None,
+                 config: Union[AssignConfig, ClusterConfig] = assign_cfg
                  ):
     """
-    Run ensemble selection method or single selection method according to the method name.
+        Run ensemble selection method or single selection method according to the method name.
 
-    :param method: feature selection method
-    :param adata: the anndata instance containing raw and norm data
-    :param recorders: list of performance recorders
-    :param config: assign configuration or cluster configuration
-    :return: importances and feature names, respectively.
+        :param method: feature selection method
+        :param adata: the anndata instance containing raw and norm data
+        :param recorder: performance recorder
+        :param config: assign configuration or cluster configuration
+        :return: importances and feature names, respectively.
     """
     try:
         if '+' in method:  # ensemble learning
@@ -197,7 +188,7 @@ def select_genes(method: str,
                 for base_method in base_methods:
                     # delete current files in tempData
                     delete('tempData/')
-                    result = cal_feature_importance(base_method, adata, recorder=recorders[-1], config=config)
+                    result = cal_feature_importance(base_method, adata, recorder=recorder, config=config)
                     if isinstance(result, list):  # base method is cellassign
                         raise RuntimeError(f"{base_method} can't generate feature importances!")
                     else:
@@ -210,7 +201,7 @@ def select_genes(method: str,
                 for base_method in base_methods:
                     # delete current files in tempData
                     delete('tempData/')
-                    result = cal_feature_importance(base_method, adata, recorder=recorders[-1], config=config)
+                    result = cal_feature_importance(base_method, adata, recorder=recorder, config=config)
                     selected_genes = result[-1][0] if isinstance(result, list) else result[0]
                     for gene in selected_genes:
                         gene_dict[gene] += 1
@@ -220,9 +211,7 @@ def select_genes(method: str,
             final_result = most_important_genes(sorted_result[1], sorted_result[0])  # importance, all features
         else:  # single method
             final_result = most_important_genes(
-                *cal_feature_importance(method, adata, recorder=recorders[-1], config=config))
+                *cal_feature_importance(method, adata, recorder=recorder, config=config))
     except timeout_decorator.timeout_decorator.TimeoutError:
-        for recorder in recorders:
-            recorder.handle_timeout()
         final_result = None
     return final_result

@@ -5,7 +5,7 @@ require(Hmisc)
 
 setwd('/home/tdeng/SingleCell/scRNA-FeatureSelection/tempData')
 sce_all <- load_sce("all")
-cluster_methods <- c('seurat','sc3')#  'tscan', , 'cidr', 'liger', 'scmap'
+cluster_methods <- c('seurat','sc3', 'cidr')#  'tscan', , 'cidr', 'liger', 'scmap'
 
 for (i in 1:length(cluster_methods)){
   cluster_result <- run_cluster_methods(cluster_methods[i], sce_all)

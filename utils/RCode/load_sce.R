@@ -1,7 +1,7 @@
 
 
 load_sce <- function(type){
-  require(SingleCellExperiment)
+  require("SingleCellExperiment",character.only = TRUE)
   if (type == "all"){
     count_matrix <- as.matrix(t(read.csv('temp_X.csv', row.names = 1, header = T)))
     labels <- as.matrix(read.csv('temp_y.csv', row.names = 1))

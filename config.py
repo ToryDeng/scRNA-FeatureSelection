@@ -1,13 +1,14 @@
 class ExperimentConfig:
     def __init__(self):
+        # unsupervised methods
         self.method_on = {
             'var': 'raw',
             'cv2': 'raw',
             'seurat': 'raw',
             'deviance': 'raw',
             'm3drop': 'raw',
-            'monocle3': 'raw',
-            'DE': 'norm'
+            'scmap': 'raw',
+            'cellranger': 'raw'
         }
         self.method_lan = {
             'var': 'python',
@@ -15,9 +16,26 @@ class ExperimentConfig:
             'seurat': 'python',
             'deviance': 'r',
             'm3drop': 'r',
-            'monocle3': 'r',
-            'DE': 'python'
+            'scmap': 'r',
+            'cellranger': 'python'
         }
+        # measurements
+        self.measurements = {
+            'population_demixing': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # all datasets
+            'marker_discovery': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # 4 datasets
+            'selection_stability': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  #
+
+            'classification': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # singlecellnet singleR itclust, ck f1
+            'clustering': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # seurat sc3 cidr, bcubed_f1 ARI v-measure
+            'rare_cell_detection': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # f1_rare, bcubed_f1_rare
+            'batch_correction': ['xin+muraro'],
+            # differential expression analysis?
+
+            'computation_time': ['xin', 'muraro']  # large-scale datasets
+
+            #, 'muraro', 'segerstolpe', 'PBMC3000'
+        }
+
         self.random_seed = 2020
         self.scale_factor = 1e4
         self.n_filter_cell = 5
@@ -33,6 +51,7 @@ class ExperimentConfig:
 class AssignConfig(ExperimentConfig):
     def __init__(self):
         super().__init__()
+        # supervised methods
         self.method_on.update({
             'rf': 'raw',
             'lgb': 'raw',
@@ -40,7 +59,6 @@ class AssignConfig(ExperimentConfig):
             'nsc': 'norm',
             'fisher_score': 'raw',
             'scGeneFit': 'raw',
-            'cellassign': 'raw'
         })
         self.method_lan.update({
             'rf': 'python',
@@ -49,7 +67,6 @@ class AssignConfig(ExperimentConfig):
             'nsc': 'python',
             'fisher_score': 'python',
             'scGeneFit': 'python',
-            'cellassign': 'r'
         })
         self.n_folds = 5  # 5 folds
 
@@ -92,17 +109,16 @@ formal_method_names = {
     'seurat': 'Seurat',
     'deviance': 'Deviance',
     'm3drop': 'M3Drop',
-    'monocle3': 'Monocle3',
-    'DE': 'DE',
+    'scmap': 'scmap',
     'rf': 'RF',
     'lgb': 'LightGBM',
     'xgb': 'XGBoost',
     'nsc': 'NSC',
     'fisher_score': 'Fisher Score',
     'scGeneFit': 'scGeneFit',
-    'cellassign': 'CellAssign',
+    'cellranger': 'CellRanger',
     'rf+fisher_score': 'RF+\nFisher Score',
-    'seurat+deviance': 'seurat+\ndeviance'
+    'seurat+deviance': 'Seurat+\nDeviance'
 }
 
 exp_cfg = ExperimentConfig()

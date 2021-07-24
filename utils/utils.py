@@ -45,61 +45,70 @@ def load_data(data_name: str) -> ad.AnnData:
     :return:  anndata object with raw_data, norm_data and markers in data
     """
     sc.settings.verbosity = 1
-    if data_name[:4] == 'PBMC':
-        data = pd.read_hdf(data_cfg.PBMC_path, key="AllCells")
-        if len(data_name) > 4:
-            if data_name[4:-1].isdigit() and data_name[-1] == '%':
-                rate = float(data_name[4:-1])
-                assert 0 < rate < 100, ValueError("The percentage is wrong!")
-                X, y = data.iloc[:, :-1], data.iloc[:, -1]
-                _, raw_features, __, labels = train_test_split(X, y, test_size=rate / 100,
-                                                               random_state=exp_cfg.random_seed, stratify=y)
-                data = pd.concat([raw_features, labels], axis=1)
-            elif data_name[4:].isdigit():
-                n_cells = int(data_name[4:])
-                assert 0 < n_cells < data.shape[0], ValueError("The cell num is wrong!")
-                X, y = data.iloc[:, :-1], data.iloc[:, -1]
-                _, raw_features, __, labels = train_test_split(X, y, test_size=n_cells,
-                                                               random_state=exp_cfg.random_seed, stratify=y)
-                data = pd.concat([raw_features, labels], axis=1)
-            else:
-                raise ValueError("Wrong data name.")
-        os.chdir(data_cfg.PBMC_markers_path)
-        part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
-        part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.str_, delimiter=',')
-        part3 = np.unique(np.loadtxt('CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str_, delimiter=','))
-        markers = np.union1d(np.union1d(part1, part2), part3)
+    if '+' not in data_name:
+        if data_name[:4] == 'PBMC':
+            data = pd.read_hdf(data_cfg.PBMC_path, key="AllCells")
+            if len(data_name) > 4:
+                if data_name[4:-1].isdigit() and data_name[-1] == '%':
+                    rate = float(data_name[4:-1])
+                    assert 0 < rate < 100, ValueError("The percentage is wrong!")
+                    X, y = data.iloc[:, :-1], data.iloc[:, -1]
+                    _, raw_features, __, labels = train_test_split(X, y, test_size=rate / 100,
+                                                                   random_state=exp_cfg.random_seed, stratify=y)
+                    data = pd.concat([raw_features, labels], axis=1)
+                elif data_name[4:].isdigit():
+                    n_cells = int(data_name[4:])
+                    assert 0 < n_cells < data.shape[0], ValueError("The cell num is wrong!")
+                    X, y = data.iloc[:, :-1], data.iloc[:, -1]
+                    _, raw_features, __, labels = train_test_split(X, y, test_size=n_cells,
+                                                                   random_state=exp_cfg.random_seed, stratify=y)
+                    data = pd.concat([raw_features, labels], axis=1)
+                else:
+                    raise ValueError("Wrong data name.")
+            os.chdir(data_cfg.PBMC_markers_path)
+            part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
+            part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.str_, delimiter=',')
+            part3 = np.unique(np.loadtxt('CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str_, delimiter=','))
+            markers = np.union1d(np.union1d(part1, part2), part3)
 
-    elif data_name in ['muraro', 'segerstolpe', 'xin']:
-        data = pd.read_hdf(data_cfg.pancreas_path, key=data_name.capitalize() + '_pancreas')
-        data = data.loc[~data.iloc[:, -1].isin(data_cfg.pancreas_remove_types).values]
-        os.chdir(data_cfg.pancreas_markers_path)
-        markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
-    elif data_name[:3] == 'sim':
-        if data_name == 'sim_raw':
-            data = pd.read_hdf(data_cfg.sim_path, key='sim_all')
-        else:  # 200, 500, 1000, 2000, 5000, 10000 cells
-            data = pd.read_hdf(data_cfg.sim_path, key=data_name)
-        os.chdir(data_cfg.sim_markers_path)
-        markers = data.columns[-2001:-1].to_numpy()
+        elif data_name in ['muraro', 'segerstolpe', 'xin']:
+            data = pd.read_hdf(data_cfg.pancreas_path, key=data_name.capitalize() + '_pancreas')
+            data = data.loc[~data.iloc[:, -1].isin(data_cfg.pancreas_remove_types).values]
+            os.chdir(data_cfg.pancreas_markers_path)
+            markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
+        elif data_name[:3] == 'sim':
+            if data_name == 'sim_raw':
+                data = pd.read_hdf(data_cfg.sim_path, key='sim_all')
+            else:  # 200, 500, 1000, 2000, 5000, 10000 cells
+                data = pd.read_hdf(data_cfg.sim_path, key=data_name)
+            os.chdir(data_cfg.sim_markers_path)
+            markers = data.columns[-2001:-1].to_numpy()
+        else:
+            raise ValueError(f"data name {data_name} is wrong!")
+        os.chdir("../../scRNA-FeatureSelection")  # return to scRNA-FeatureSelection dir
+        count_matrix, labels = data.iloc[:, :-1].round(), data.iloc[:, -1]
+        count_matrix.columns, labels.name = get_gene_names(count_matrix.columns), "celltype"
+
+        adata = ad.AnnData(X=count_matrix, obs=labels.to_frame())
+        adata.obs_names_make_unique(join='.')
+        adata.var_names_make_unique(join='.')
+        adata.uns['markers'] = np.intersect1d(markers, adata.var_names)  # only contains existing genes
+        adata.uns['data_name'] = data_name
+        # filter almostly constant cells and genes
+        sc.pp.filter_genes(data=adata, min_cells=exp_cfg.n_filter_cell, inplace=True)
+        sc.pp.filter_cells(data=adata, min_genes=exp_cfg.n_filter_gene, inplace=True)
+        # store raw data
+        adata.raw = adata
+        # normalize data
+        sc.pp.normalize_total(adata, target_sum=exp_cfg.scale_factor, inplace=True)
+        sc.pp.log1p(adata)
     else:
-        raise ValueError(f"data name {data_name} is wrong!")
-    os.chdir("../../scRNA-FeatureSelection")  # return to scRNA-FeatureSelection dir
-    count_matrix, labels = data.iloc[:, :-1].round(), data.iloc[:, -1]
-    count_matrix.columns, labels.name = get_gene_names(count_matrix.columns), "celltype"
-
-    adata = ad.AnnData(X=count_matrix, obs=labels.to_frame())
-    adata.obs_names_make_unique(join='.')
-    adata.var_names_make_unique(join='.')
-    adata.uns['markers'] = np.intersect1d(markers, adata.var_names)  # only contains existing genes
-    adata.uns['data_name'] = data_name
-    # filter almostly constant cells and genes
-    sc.pp.filter_genes(data=adata, min_cells=exp_cfg.n_filter_cell, inplace=True)
-    sc.pp.filter_cells(data=adata, min_genes=exp_cfg.n_filter_gene, inplace=True)
-    # store raw data
-    adata.raw = adata
-    sc.pp.normalize_total(adata, target_sum=exp_cfg.scale_factor, inplace=True)
-    sc.pp.log1p(adata)
+        batch_names = data_name.split('+')
+        batch_data = [load_data(data_name) for data_name in batch_names]
+        adata = ad.concat(batch_data, join="inner", keys=batch_names, label='batch')
+        # sc.pp.normalize_total(adata, target_sum=exp_cfg.scale_factor, inplace=True)
+        # sc.pp.log1p(adata)
+        sc.pp.pca(adata)
     return adata
 
 
@@ -129,7 +138,7 @@ def save_data(adata_train: Optional[ad.AnnData] = None, adata_test: Optional[ad.
     :param task: 'assign' or 'cluster'
     :return: None
     """
-    assert task in ['assign', 'cluster'], "Parameter 'task' is wrong."
+    assert task in ['assign', 'cluster', 'correct'], "Parameter 'task' is wrong."
     if task == 'assign':
         if adata_train is not None:
             adata_train.to_df().to_csv('tempData/temp_X_train.csv')
@@ -139,9 +148,18 @@ def save_data(adata_train: Optional[ad.AnnData] = None, adata_test: Optional[ad.
             adata_test.obs['celltype'].to_csv('tempData/temp_y_test.csv')
         if adata_train is None and adata_test is None:
             raise ValueError("adata_train and adata_test are both None.")
-    else:
+    elif task == 'cluster':
         adata_train.to_df().to_csv('tempData/temp_X.csv')
         adata_train.obs['celltype'].to_csv('tempData/temp_y.csv')
+    else:  # batch correction
+        if 'X_pca_harmony' in adata_train.obsm:
+            representation = 'X_pca_harmony'
+        elif 'X_scanorama' in adata_train.obsm:
+            representation = 'X_scanorama'
+        else:
+            representation = 'X_pca'  # scGen
+        pd.DataFrame(adata_train.obsm[representation], index=adata_train.obs_names).to_csv('tempData/temp_X.csv')
+        adata_train.obs['batch'].to_csv('tempData/temp_y.csv')
 
 
 def head(name: str, fold='', head_len=65):
@@ -171,6 +189,47 @@ def filter_adata(adata: ad.AnnData, filter_gene: bool = False, filter_cell: bool
     if not filter_gene and not filter_cell:
         warnings.warn("function 'filter_adata' is actually not used.", RuntimeWarning)
     return adata
+
+
+def plot_2D(combined_adata: ad.AnnData, dr_method: str = 'umap', mode: str = 'before'):
+    if mode == 'before':
+        if dr_method == 'umap':
+            sc.pp.neighbors(combined_adata)
+            sc.tl.umap(combined_adata)
+            sc.pl.umap(combined_adata, color=['batch', 'celltype'], hspace=0.1, frameon=False,
+                       palette=sc.pl.palettes.vega_20_scanpy,
+                       save=': ' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+        elif dr_method == 'tsne':
+            sc.tl.tsne(combined_adata)
+            sc.pl.tsne(combined_adata, color=['batch', 'celltype'], hspace=0.1, frameon=False,
+                       palette=sc.pl.palettes.vega_20_scanpy,
+                       save=': ' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+
+    elif mode == 'after':
+        if 'X_pca_harmony' in combined_adata.obsm:
+            representation = 'X_pca_harmony'
+        elif 'X_scanorama' in combined_adata.obsm:
+            representation = 'X_scanorama'
+        else:
+            representation = 'X_pca'  # scGen
+        print(f"Use {representation} to plot.")
+        if dr_method == 'umap':
+            sc.pp.neighbors(combined_adata, use_rep=representation)
+            sc.tl.umap(combined_adata)
+            sc.pl.umap(combined_adata, color=['batch', 'celltype'], hspace=0.1, frameon=False,
+                       palette=sc.pl.palettes.vega_20_scanpy,
+                       save=': ' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+        elif dr_method == 'tsne':
+            if representation == 'X_pca' and representation not in combined_adata.obsm:
+                sc.pp.pca(combined_adata, random_state=exp_cfg.random_seed)  # scGen returns corrected adata
+            sc.tl.tsne(combined_adata, use_rep=representation)
+            sc.pl.tsne(combined_adata, color=['batch', 'celltype'], hspace=0.1, frameon=False,
+                       palette=sc.pl.palettes.vega_20_scanpy,
+                       save=': ' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+        else:
+            raise NotImplementedError(f"{dr_method} have not been implemented yet.")
+    else:
+        raise ValueError(f"mode must be 'before' or 'after'.")
 
 
 def normalize_importances(importances: np.ndarray) -> np.ndarray:
