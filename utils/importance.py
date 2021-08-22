@@ -44,6 +44,8 @@ def most_important_genes(importances: Optional[np.ndarray],
         if importances.shape[0] != all_features.shape[0]:
             raise RuntimeError(f"The length of importance({importances.shape[0]}) and gene names"
                                f"({all_features.shape[0]}) are not the same. Please check again!")
+        na_mask = np.isnan(importances.astype(np.float))
+        importances, all_features = importances[~na_mask].astype(np.float), all_features[~na_mask]
         all_idx = np.argsort(importances)[::-1]
         fea_impo_list = []
         for n_gene in exp_cfg.n_genes:
@@ -149,8 +151,10 @@ def cal_feature_importance(method: str,
 
         if method == 'm3drop':
             genes = pd.read_csv(execute_Rscript(adata.uns['data_name'], method),
-                                usecols=[1, 3]
-                                ).sort_values(by='p.value', ascending=True)
+                                usecols=[1, 3]).sort_values(by='p.value', ascending=True)
+            all_features, importance = get_gene_names(genes['Gene'].values), 1 - genes['p.value'].values
+        elif method == 'feast':
+            genes = pd.read_csv(execute_Rscript(adata.uns['data_name'], method), usecols=[1, 2])
             all_features, importance = get_gene_names(genes['Gene'].values), 1 - genes['p.value'].values
         elif method == 'deviance':
             gene_importance = np.loadtxt(execute_Rscript(adata.uns['data_name'], method),

@@ -42,61 +42,66 @@ def load_data(data_name: str) -> ad.AnnData:
     using the method in Seurat.
 
     :param data_name: the dataset name you want to get
-    :return:  anndata object with raw_data, norm_data and markers in data
+    :return: anndata object with raw_data, norm_data and markers in data, or the concatenated data.
     """
     sc.settings.verbosity = 1
+    markers = None
+    dataset, n_samples = re.match(r"([a-zA-Z]*)([0-9]*)", data_name).groups()
+
+    project_path = os.getcwd()
     if '+' not in data_name:
-        if data_name[:4] == 'PBMC':
-            data = pd.read_hdf(data_cfg.PBMC_path, key="AllCells")
-            if len(data_name) > 4:
-                if data_name[4:-1].isdigit() and data_name[-1] == '%':
-                    rate = float(data_name[4:-1])
-                    assert 0 < rate < 100, ValueError("The percentage is wrong!")
-                    X, y = data.iloc[:, :-1], data.iloc[:, -1]
-                    _, raw_features, __, labels = train_test_split(X, y, test_size=rate / 100,
-                                                                   random_state=exp_cfg.random_seed, stratify=y)
-                    data = pd.concat([raw_features, labels], axis=1)
-                elif data_name[4:].isdigit():
-                    n_cells = int(data_name[4:])
-                    assert 0 < n_cells < data.shape[0], ValueError("The cell num is wrong!")
-                    X, y = data.iloc[:, :-1], data.iloc[:, -1]
-                    _, raw_features, __, labels = train_test_split(X, y, test_size=n_cells,
-                                                                   random_state=exp_cfg.random_seed, stratify=y)
-                    data = pd.concat([raw_features, labels], axis=1)
-                else:
-                    raise ValueError("Wrong data name.")
+        if dataset == 'PBMC':
+            adata = ad.read_h5ad(data_cfg.data_path + 'ZhengPBMC92k.h5ad')
             os.chdir(data_cfg.PBMC_markers_path)
             part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
             part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.str_, delimiter=',')
             part3 = np.unique(np.loadtxt('CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str_, delimiter=','))
             markers = np.union1d(np.union1d(part1, part2), part3)
 
-        elif data_name in ['muraro', 'segerstolpe', 'xin']:
-            data = pd.read_hdf(data_cfg.pancreas_path, key=data_name.capitalize() + '_pancreas')
-            data = data.loc[~data.iloc[:, -1].isin(data_cfg.pancreas_remove_types).values]
+        elif dataset in ['muraro', 'segerstolpe', 'xin', 'baronHuman']:
+            adata = ad.read_h5ad(data_cfg.data_path + f"{dataset.capitalize() + 'Pancreas'}.h5ad")
             os.chdir(data_cfg.pancreas_markers_path)
             markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
-        elif data_name[:3] == 'sim':
-            if data_name == 'sim_raw':
-                data = pd.read_hdf(data_cfg.sim_path, key='sim_all')
-            else:  # 200, 500, 1000, 2000, 5000, 10000 cells
-                data = pd.read_hdf(data_cfg.sim_path, key=data_name)
-            os.chdir(data_cfg.sim_markers_path)
-            markers = data.columns[-2001:-1].to_numpy()
+
+        elif dataset in ['ZilionisMouseLungCancer', 'AztekinTail', 'MarquesMouseBrain', 'ZeiselMouseBrain',
+                         'LunSpikeInTropho', 'LunSpikeInBcells', 'VentoHumanPlacenta', 'BaronHumanPancreas',
+                         'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel']:
+            adata = ad.read_h5ad(data_cfg.data_path + f'{dataset}.h5ad')
+
         else:
             raise ValueError(f"data name {data_name} is wrong!")
-        os.chdir("../../scRNA-FeatureSelection")  # return to scRNA-FeatureSelection dir
-        count_matrix, labels = data.iloc[:, :-1].round(), data.iloc[:, -1]
-        count_matrix.columns, labels.name = get_gene_names(count_matrix.columns), "celltype"
 
-        adata = ad.AnnData(X=count_matrix, obs=labels.to_frame())
+        os.chdir(project_path)  # return to project dir
+
+        adata.var_names = get_gene_names(adata.var_names)
+        adata.obs.rename(columns={adata.obs.columns[0]: 'celltype'}, inplace=True)
         adata.obs_names_make_unique(join='.')
         adata.var_names_make_unique(join='.')
-        adata.uns['markers'] = np.intersect1d(markers, adata.var_names)  # only contains existing genes
+
+        if markers is not None:
+            adata.uns['markers'] = np.intersect1d(markers, adata.var_names)  # only contains existing genes
+        if dataset == 'VentoHumanPlacenta':  # at least 2 samples are in dataset, for computation time test
+            adata = adata[adata.obs['celltype'].isin(adata.obs['celltype'].value_counts().index[:12].to_numpy()), :]
+        head(data_name, head_len=100)
         adata.uns['data_name'] = data_name
+
         # filter almostly constant cells and genes
         sc.pp.filter_genes(data=adata, min_cells=exp_cfg.n_filter_cell, inplace=True)
         sc.pp.filter_cells(data=adata, min_genes=exp_cfg.n_filter_gene, inplace=True)
+        # filter unclear cells
+        adata = adata[~adata.obs['celltype'].isin(data_cfg.remove_types)]
+
+        # filter mito, RP, ERCC
+        adata.var['mt'] = adata.var_names.str.match(r'^MT-')
+        adata.var['rp'] = adata.var_names.str.match(r'^RP[SL0-9]')
+        adata.var['ERCC'] = adata.var_names.str.match(r'^ERCC-')
+        sc.pp.calculate_qc_metrics(adata, qc_vars=['mt', 'rp', 'ERCC'], percent_top=None, log1p=False, inplace=True)
+        adata = adata[:, (~adata.var['mt']) & (~adata.var['rp']) & (~adata.var['ERCC'])]
+        adata = adata[adata.obs.pct_counts_mt < 5, :]  # Cumulative percentage of counts for mito genes
+        adata = adata[adata.obs.n_genes_by_counts < adata.obs.n_genes_by_counts.quantile(0.95), :]
+        # sample data
+        if n_samples != '':
+            sc.pp.subsample(adata, n_obs=int(n_samples), random_state=exp_cfg.random_seed)
         # store raw data
         adata.raw = adata
         # normalize data
@@ -106,8 +111,6 @@ def load_data(data_name: str) -> ad.AnnData:
         batch_names = data_name.split('+')
         batch_data = [load_data(data_name) for data_name in batch_names]
         adata = ad.concat(batch_data, join="inner", keys=batch_names, label='batch')
-        # sc.pp.normalize_total(adata, target_sum=exp_cfg.scale_factor, inplace=True)
-        # sc.pp.log1p(adata)
         sc.pp.pca(adata)
     return adata
 
@@ -167,7 +170,7 @@ def head(name: str, fold='', head_len=65):
     formatted printing
 
     :param name: head name
-    :param fold: i-th fold
+    :param fold: i-th fold in classification
     :param head_len: length of head, including stars
     :return: None
     """

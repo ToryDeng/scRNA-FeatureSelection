@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import List
 
 import numpy as np
-import pandas as pd
 import scanpy as sc
 import anndata as ad
 import scgen
@@ -14,7 +13,7 @@ from config import assign_cfg, cluster_cfg, exp_cfg
 from utils.importance import select_genes
 from utils.record import MasterRecorder, ClassificationRecorder, ClusteringRecorder
 from utils.itclust import ItClust_predict
-from utils.utils import load_data, delete, save_data, filter_adata, plot_2D, HiddenPrints
+from utils.utils import load_data, delete, save_data, filter_adata, plot_2D, HiddenPrints, head
 
 
 def evaluate_assign_result(recorder: ClassificationRecorder = None,
@@ -104,8 +103,7 @@ def evaluate_cluster_result(recorder: ClusteringRecorder = None,
             cluster_result[cluster_method + '_BCubed'] = recorder.BCubed_fbeta_score(label_true, label_pred)
             cluster_result[cluster_method + '_V'] = v_measure_score(label_true, label_pred)
             if hasattr(recorder, 'rare_type'):
-                rare_mask = label_true == recorder.rare_type
-                cluster_result[cluster_method + '_BCubed_rare'] = recorder.BCubed_fbeta_score(label_true[rare_mask], label_pred[rare_mask])
+                cluster_result[cluster_method + '_BCubed_rare'] = recorder.BCubed_fbeta_score_rare(label_true, label_pred)
         except OSError:
             print(f"After selecting {n_gene} genes: {cluster_method} failed."
                   f" Set ARI and F1 of the rare cell type to 0.")
@@ -149,32 +147,37 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
         if measurement in measurements:
             if measurement == 'population_demixing':
                 for dataset in datasets:
+                    delete('tempData/')
                     adata = load_data(dataset)
                     for method in methods:
                         master_recorder.mixture.set_current_method(method)
                         result_list = select_genes(method, adata, config=assign_cfg)
-                        for n_gene, result in zip(exp_cfg.n_genes, result_list):
-                            gene_mask = master_recorder.mixture.get_mask(adata.var_names.values, result, n_gene)
-                            selected_adata = filter_adata(adata.raw[:, gene_mask].to_adata(), filter_cell=True)
-                            master_recorder.mixture.record(dataset, n_gene, selected_adata)
+                        if result_list is not None:
+                            for n_gene, result in zip(exp_cfg.n_genes, result_list):
+                                gene_mask = master_recorder.mixture.get_mask(adata.var_names.values, result, n_gene)
+                                selected_adata = filter_adata(adata.raw[:, gene_mask].to_adata(), filter_cell=True)
+                                master_recorder.mixture.record(dataset, n_gene, selected_adata)
                 master_recorder.mixture.save()
             elif measurement == 'marker_discovery':
                 for dataset in datasets:
+                    delete('tempData/')
                     adata = load_data(dataset)
                     for method in methods:
                         master_recorder.marker.set_current_method(method)
                         result_list = select_genes(method, adata, config=assign_cfg)
-                        for n_gene, result in zip(exp_cfg.n_genes, result_list):
-                            master_recorder.marker.record(dataset, n_gene, adata.uns['markers'], result)
+                        if result_list is not None:
+                            for n_gene, result in zip(exp_cfg.n_genes, result_list):
+                                master_recorder.marker.record(dataset, n_gene, adata.uns['markers'], result)
                 master_recorder.marker.save()
             elif measurement == 'computation_time':
                 for dataset in datasets:
+                    delete('tempData/')
                     adata = load_data(dataset)
                     for method in methods:
                         master_recorder.time.set_current_method(method)
                         select_genes(method, adata, recorder=master_recorder.time, config=assign_cfg)
                 master_recorder.time.save()
-            elif measurement == 'batch_correction':  # TODO: batch effects removal seems wrong
+            elif measurement == 'batch_correction':
                 for comb_dataset in datasets:
                     comb_adata = load_data(comb_dataset)
                     for method in methods:
@@ -182,13 +185,14 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                         delete('tempData/')
                         # select features
                         all_result_list = select_genes(method, comb_adata, config=assign_cfg)
-                        for n_gene, result in zip(exp_cfg.n_genes, all_result_list):
-                            gene_mask = master_recorder.correct.get_mask(comb_adata.var_names.values, result, n_gene)
-                            selected_comb = filter_adata(comb_adata[:, gene_mask], filter_cell=True)
-                            plot_2D(selected_comb, dr_method='umap')
-                            plot_2D(selected_comb, dr_method='tsne')
-                            correction_result = evaluate_correction_result(selected_comb)
-                            master_recorder.correct.record(comb_dataset, n_gene, correction_result)
+                        if all_result_list is not None:
+                            for n_gene, result in zip(exp_cfg.n_genes, all_result_list):
+                                gene_mask = master_recorder.correct.get_mask(comb_adata.var_names.values, result, n_gene)
+                                selected_comb = filter_adata(comb_adata[:, gene_mask], filter_cell=True)
+                                plot_2D(selected_comb, dr_method='umap')
+                                plot_2D(selected_comb, dr_method='tsne')
+                                correction_result = evaluate_correction_result(selected_comb)
+                                master_recorder.correct.record(comb_dataset, n_gene, correction_result)
                 master_recorder.correct.save()
             elif measurement == 'classification':
                 for dataset in datasets:
@@ -213,18 +217,19 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                             # select features
                             all_result_list = select_genes(method, adata_train, config=assign_cfg)
                             # store selected genes, 4 n_gene * 5 folds
-                            master_recorder.assign.store_selected_genes(dataset, all_result_list)
-                            for n_gene, result in zip(exp_cfg.n_genes, all_result_list):
-                                gene_mask = master_recorder.assign.get_mask(adata_train.var_names.values, result, n_gene)
-                                # filter out non-markers and save raw data
-                                selected_train = filter_adata(adata_train.raw[:, gene_mask].to_adata(),
-                                                              filter_cell=True)
-                                selected_test = filter_adata(adata_test.raw[:, gene_mask].to_adata(),
-                                                             filter_cell=True)
-                                save_data(selected_train, selected_test)
-                                # metric of downstream analysis
-                                assign_result = evaluate_assign_result(master_recorder.assign, n_gene, selected_train, selected_test)
-                                master_recorder.assign.record(dataset, n_gene, i, assign_result)
+                            if all_result_list is not None:
+                                master_recorder.assign.store_selected_genes(dataset, all_result_list)
+                                for n_gene, result in zip(exp_cfg.n_genes, all_result_list):
+                                    gene_mask = master_recorder.assign.get_mask(adata_train.var_names.values, result, n_gene)
+                                    # filter out non-markers and save raw data
+                                    selected_train = filter_adata(adata_train.raw[:, gene_mask].to_adata(),
+                                                                  filter_cell=True)
+                                    selected_test = filter_adata(adata_test.raw[:, gene_mask].to_adata(),
+                                                                 filter_cell=True)
+                                    save_data(selected_train, selected_test)
+                                    # metric of downstream analysis
+                                    assign_result = evaluate_assign_result(master_recorder.assign, n_gene, selected_train, selected_test)
+                                    master_recorder.assign.record(dataset, n_gene, i, assign_result)
                     master_recorder.assign.cal_mean_rbo(dataset)
                 master_recorder.assign.save()
             elif measurement == 'clustering':
@@ -246,12 +251,13 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                             master_recorder.cluster.set_current_method(method)
                             for j, data in enumerate([adata_left, adata_right]):
                                 half_result_list = select_genes(method, data, config=cluster_cfg)
-                                for n_gene, half_result in zip(exp_cfg.n_genes, half_result_list):
-                                    half_mask = master_recorder.cluster.get_mask(data.var_names.values, half_result, n_gene)
-                                    half_selected = filter_adata(data.raw[:, half_mask].to_adata(), filter_gene=True, filter_cell=True)
-                                    save_data(half_selected, task='cluster')
-                                    # downstream analysis: clustering
-                                    half_metric = evaluate_cluster_result(master_recorder.cluster, n_gene)
-                                    # double_metrics[j].append(half_metric)
-                                    master_recorder.cluster.record(dataset, n_gene, i, j, half_metric)
+                                if half_result_list is not None:
+                                    for n_gene, half_result in zip(exp_cfg.n_genes, half_result_list):
+                                        half_mask = master_recorder.cluster.get_mask(data.var_names.values, half_result, n_gene)
+                                        half_selected = filter_adata(data.raw[:, half_mask].to_adata(), filter_gene=True, filter_cell=True)
+                                        save_data(half_selected, task='cluster')
+                                        # downstream analysis: clustering
+                                        half_metric = evaluate_cluster_result(master_recorder.cluster, n_gene)
+                                        # double_metrics[j].append(half_metric)
+                                        master_recorder.cluster.record(dataset, n_gene, i, j, half_metric)
                 master_recorder.cluster.save()

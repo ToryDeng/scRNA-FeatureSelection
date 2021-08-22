@@ -11,7 +11,7 @@ highly_variable_gene.deviance <- function(data, data_name){
   source("/home/tdeng/SingleCell/scRNA-FeatureSelection/utils/RCode/deviance.R")
   count_matrix <- data@assays@data@listData[["counts"]]
   t1 <- proc.time()
-  deviance_result <- sort(compute_deviance(count_matrix), decreasing = TRUE)[1:1000]
+  deviance_result <- sort(compute_deviance(count_matrix), decreasing = TRUE)
   t2 <- proc.time()
   # save time and markers
   time_file_name <- paste(data_name, 'time', 'deviance', sep = '_')

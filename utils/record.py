@@ -37,7 +37,7 @@ class PerformanceRecorder:
         :return: a bool array
         """
         selected_genes = single_selected_result[0]
-        mask = np.isin(all_genes, single_selected_result[0])
+        mask = np.isin(all_genes, selected_genes)
         selected_markers_num = mask.sum()
         if selected_markers_num == 0:
             raise RuntimeError("No gene is selected!")
@@ -45,6 +45,7 @@ class PerformanceRecorder:
             msg = f"Selected {selected_markers_num} genes, not {n_gene}. "
             if selected_markers_num < selected_genes.shape[0]:
                 msg += f"Some selected genes are not used: {np.setdiff1d(selected_genes, all_genes)}"
+                print()
             warnings.warn(msg)
         return mask
 
@@ -222,7 +223,7 @@ class ClassificationRecorder(PerformanceRecorder):
         for method, n_gene in product(self.methods, exp_cfg.n_genes):
             self.stability.loc[(dataset, n_gene), method] = np.median(
                 [rbo.RankingSimilarity(a, b).rbo(p=0.999) for a, b in combinations(self.selected_genes[(dataset, method, n_gene)], 2)]
-            )  # when p = 0.999: the top 500, 1000, 1500, 2000 genes have 67%, 85%, 93%, 96%  of th weight
+            )  # when p = 0.999: the top 500, 1000, 1500, 2000 genes have 67%, 85%, 93%, 96%  of the weight
             print(self.stability)
 
     def record(self, dataset: str, n_gene: int, n_fold: int, assign_result: dict):
@@ -305,6 +306,30 @@ class ClusteringRecorder(PerformanceRecorder):
         bcubed_precision = np.array(item_precision_list).sum() / len(item_precision_list)
         bcubed_recall = np.array(item_recall_list).sum() / len(item_recall_list)
         return (1 + beta ** 2) * bcubed_precision * bcubed_recall / (beta ** 2 * bcubed_precision + bcubed_recall)
+
+    def BCubed_fbeta_score_rare(self, labels_true: np.ndarray, labels_pred: np.ndarray, beta=1.):
+        """
+        BCubed_fbeta_score for rare cell type detection.
+
+        :param labels_true: category annotation
+        :param labels_pred: cluster annotation
+        :param beta: the weighting hyperparameter
+        :return: BCubed score for rare type
+        """
+        rare_type_mask = labels_true == self.rare_type
+        rare_cell_num = np.sum(rare_type_mask)
+        precision, recall = [], []
+        for cluster in np.unique(labels_pred[rare_type_mask]):  # clusters that rare cells are divided to
+            cluster_mask = labels_pred == cluster
+            cluster_true = labels_true[cluster_mask]
+
+            n_true_positive = np.sum(cluster_true == self.rare_type)
+            precision.append(n_true_positive ** 2 / np.sum(cluster_mask))  # sum of precision in this cluster
+            recall.append(n_true_positive ** 2 / rare_cell_num)  # sum of recall in this cluster
+
+        ave_precision, ave_recall = np.sum(precision) / rare_cell_num, np.sum(recall) / rare_cell_num
+        fbeta_BCubed_rare = (beta ** 2 + 1) * ave_precision * ave_recall / (beta ** 2 * ave_precision + ave_recall)
+        return fbeta_BCubed_rare
 
     def record(self, dataset: str, n_gene: int, n_loop: int, n_fold: int, cluster_result: dict):
         for key, value in cluster_result.items():
