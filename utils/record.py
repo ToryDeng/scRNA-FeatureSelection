@@ -20,14 +20,13 @@ class PerformanceRecorder:
         self.methods = methods
         self.current_method = None
 
-    def set_current_method(self, method):
+    def set_current_method(self, method, fold=''):
         self.current_method = method
         if '+' in method:
             self.base_methods = method.split('+')
-        head(name=method)
+        head(name=method, fold=fold)
 
-    @staticmethod
-    def get_mask(all_genes: np.ndarray, single_selected_result: tuple, n_gene: Union[float, int]) -> np.ndarray:
+    def get_mask(self, all_genes: np.ndarray, single_selected_result: tuple, n_gene: Union[float, int]) -> np.ndarray:
         """
         Get the mask that indicates which genes are selected.
 
@@ -36,18 +35,40 @@ class PerformanceRecorder:
         :param n_gene: number of selected genes
         :return: a bool array
         """
-        selected_genes = single_selected_result[0]
+        selected_genes, all_genes = np.char.strip(single_selected_result[0].astype(np.str), "'"), np.char.strip(all_genes.astype(np.str), "'")
+        missing_genes = self._check_selection_result(selected_genes, all_genes, n_gene)
+        while missing_genes is not None:
+            if np.char.startswith(missing_genes, 'X').sum() == missing_genes.shape[0]:  # gene names start with X
+                print("Removing 'X' at start...")
+                prefixed = np.char.strip(np.char.lstrip(missing_genes, 'X'), '.')
+                selected_genes = np.union1d(np.intersect1d(selected_genes, all_genes), prefixed)
+            else:
+                raise RuntimeError(f"There are genes not starting with X.")
+                # break
+            missing_genes = self._check_selection_result(selected_genes, all_genes, n_gene)
         mask = np.isin(all_genes, selected_genes)
+        return mask
+
+    @staticmethod
+    def _check_selection_result(selected: np.ndarray, total: np.ndarray, need: Union[float, int]):
+        msg, missing_genes = '', None
+        if selected.shape[0] < need:
+            expected_num = selected.shape[0]
+            msg += f"The number of selected genes is {selected.shape[0]}, not {need}."
+        else:
+            expected_num = need
+        mask = np.isin(total, selected)
         selected_markers_num = mask.sum()
         if selected_markers_num == 0:
             raise RuntimeError("No gene is selected!")
-        if selected_markers_num < n_gene:
-            msg = f"Selected {selected_markers_num} genes, not {n_gene}. "
-            if selected_markers_num < selected_genes.shape[0]:
-                msg += f"Some selected genes are not used: {np.setdiff1d(selected_genes, all_genes)}"
-                print()
-            warnings.warn(msg)
-        return mask
+        elif 0 < selected_markers_num < expected_num:
+            missing_genes = np.setdiff1d(selected, total)
+            msg += f"{expected_num - selected_markers_num} selected genes are not used: {missing_genes}"
+        else:  # selected_markers_num == expected_num
+            print(f"Selected genes ({selected_markers_num}) are all successfully masked.")
+        if msg != '':
+            warnings.warn(msg, RuntimeWarning)
+        return missing_genes
 
     @abstractmethod
     def save(self):
@@ -63,14 +84,24 @@ class MixtureRecorder(PerformanceRecorder):
         )
 
     def record(self, dataset: str, n_gene: int, filtered_adata: ad.AnnData):
-        self.silhouette_coef.loc[(dataset, n_gene), self.current_method] = silhouette_score(
-            X=filtered_adata.X, labels=filtered_adata.obs['celltype'].values
-        )
+        try:
+            self.silhouette_coef.loc[(dataset, n_gene), self.current_method] = silhouette_score(
+                X=filtered_adata.X, labels=filtered_adata.obs['celltype'].values
+            )
+        except ValueError as e:
+            print(e)
+            self.silhouette_coef.loc[(dataset, n_gene), self.current_method] = 0.
 
     def save(self):
+        """
+        Save this object to file_path.
+
+        :return: None
+        """
         file_path = exp_cfg.record_path + 'MixtureRecorder.pkl'
         with open(file_path, 'wb') as f:
             pickle.dump(self, f)
+        self.silhouette_coef.to_excel(exp_cfg.record_path + 'silhouette_coefficient.xlsx')
         print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "
               f"Finished and saved record to {file_path}\n\n\n")  # UTC + 8 hours = Beijing time
 
@@ -78,7 +109,7 @@ class MixtureRecorder(PerformanceRecorder):
 class MarkerRecorder(PerformanceRecorder):
     def __init__(self, datasets: List[str], methods: List[str]):
         super(MarkerRecorder, self).__init__(datasets, methods)
-        self.n_markers_found = pd.DataFrame(
+        self.markers_found = pd.DataFrame(
             data=np.zeros((len(datasets) * len(exp_cfg.n_genes), len(methods))),
             index=pd.MultiIndex.from_product([datasets, exp_cfg.n_genes]), columns=methods
         )
@@ -113,13 +144,20 @@ class MarkerRecorder(PerformanceRecorder):
 
     def record(self, dataset: str, n_gene: int, all_markers: np.ndarray, single_selected_result: tuple):
         markers_found_rate, MRR = self.cal_markers_found_and_MRR(all_markers, single_selected_result)
-        self.n_markers_found.loc[(dataset, n_gene), self.current_method] = markers_found_rate
+        self.markers_found.loc[(dataset, n_gene), self.current_method] = markers_found_rate
         self.MRR.loc[(dataset, n_gene), self.current_method] = MRR
 
     def save(self):
+        """
+        Save this object to file_path.
+
+        :return: None
+        """
         file_path = exp_cfg.record_path + 'MarkerRecorder.pkl'
         with open(file_path, 'wb') as f:
             pickle.dump(self, f)
+        self.markers_found.to_excel(exp_cfg.record_path + 'markers_found_rate.xlsx')
+        self.MRR.to_excel(exp_cfg.record_path + 'MRR.xlsx')
         print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "
               f"Finished and saved record to {file_path}\n\n\n")  # UTC + 8 hours = Beijing time
 
@@ -151,9 +189,15 @@ class TimeRecorder(PerformanceRecorder):
             self.computation_time.loc[dataset, self.current_method] += self.R_method_time(dataset, method)
 
     def save(self):
+        """
+        Save this object to file_path.
+
+        :return: None
+        """
         file_path = exp_cfg.record_path + 'TimeRecorder.pkl'
         with open(file_path, 'wb') as f:
             pickle.dump(self, f)
+        self.computation_time.to_excel(exp_cfg.record_path + 'computation_time.xlsx')
         print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "
               f"Finished and saved record to {file_path}\n\n\n")  # UTC + 8 hours = Beijing time
 
@@ -175,9 +219,15 @@ class BatchCorrectionRecorder(PerformanceRecorder):
             self.correction.loc[(dataset, n_gene, correct_method, metric), self.current_method] = value
 
     def save(self):
+        """
+        Save this object to file_path.
+
+        :return: None
+        """
         file_path = exp_cfg.record_path + 'BatchCorrectionRecorder.pkl'
         with open(file_path, 'wb') as f:
             pickle.dump(self, f)
+        self.correction.to_excel(exp_cfg.record_path + 'batch_correction_metrics.xlsx')
         print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "
               f"Finished and saved record to {file_path}\n\n\n")  # UTC + 8 hours = Beijing time
 
@@ -185,7 +235,7 @@ class BatchCorrectionRecorder(PerformanceRecorder):
 class ClassificationRecorder(PerformanceRecorder):
     def __init__(self, datasets: List[str], methods: List[str]):
         super(ClassificationRecorder, self).__init__(datasets, methods)
-        assign_methods = ['singlecellnet', 'singleR', 'itclust']
+        assign_methods = ['singlecellnet', 'singleR', 'scanvi']
         assign_metrics = ['f1_score', 'cohen_kappa_score']
         self.overall_metrics = pd.DataFrame(
             np.zeros((len(datasets) * len(exp_cfg.n_genes) * assign_cfg.n_folds * len(assign_methods) * len(
@@ -224,7 +274,7 @@ class ClassificationRecorder(PerformanceRecorder):
             self.stability.loc[(dataset, n_gene), method] = np.median(
                 [rbo.RankingSimilarity(a, b).rbo(p=0.999) for a, b in combinations(self.selected_genes[(dataset, method, n_gene)], 2)]
             )  # when p = 0.999: the top 500, 1000, 1500, 2000 genes have 67%, 85%, 93%, 96%  of the weight
-            print(self.stability)
+            # print(f"RBO (dataset: {dataset}, n_gene: {n_gene}): {self.stability.loc[(dataset, n_gene), method]}")
 
     def record(self, dataset: str, n_gene: int, n_fold: int, assign_result: dict):
         for key, value in assign_result.items():
@@ -239,9 +289,17 @@ class ClassificationRecorder(PerformanceRecorder):
                     self.overall_metrics.loc[(dataset, n_gene, n_fold, assign_method, 'cohen_kappa_score'), self.current_method] = value
 
     def save(self):
+        """
+        Save this object to file_path.
+
+        :return: None
+        """
         file_path = exp_cfg.record_path + 'ClassificationRecorder.pkl'
         with open(file_path, 'wb') as f:
             pickle.dump(self, f)
+        self.overall_metrics.to_excel(exp_cfg.record_path + 'classification_overall_metrics.xlsx')
+        self.stability.to_excel(exp_cfg.record_path + 'selection_stability.xlsx')
+        self.rare_metric.to_excel(exp_cfg.record_path + 'classification_rare_metrics.xlsx')
         print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "
               f"Finished and saved record to {file_path}\n\n\n")  # UTC + 8 hours = Beijing time
 
@@ -341,9 +399,16 @@ class ClusteringRecorder(PerformanceRecorder):
                 self.overall_metrics.loc[(dataset, n_gene, n_loop, n_fold, cluster_method, cluster_metric), self.current_method] = value
 
     def save(self):
+        """
+        Save this object to file_path.
+
+        :return: None
+        """
         file_path = exp_cfg.record_path + 'ClusteringRecorder.pkl'
         with open(file_path, 'wb') as f:
             pickle.dump(self, f)
+        self.overall_metrics.to_excel(exp_cfg.record_path + 'clustering_overall_metrics.xlsx')
+        self.rare_metric.to_excel(exp_cfg.record_path + 'clustering_rare_metrics.xlsx')
         print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "
               f"Finished and saved record to {file_path}\n\n\n")  # UTC + 8 hours = Beijing time
 
@@ -353,6 +418,8 @@ class MasterRecorder:
     Contains all base recorders.
     """
     def __init__(self, measurements: List[str], methods: List[str]):
+        print(f"{(datetime.datetime.now() + datetime.timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')}: "
+              f"evaluation starts.")  # UTC + 8 hours = Beijing time
         self.measurements = []
         for measurement, datasets in exp_cfg.measurements.items():
             if measurement in measurements:
@@ -371,3 +438,20 @@ class MasterRecorder:
                     self.cluster = ClusteringRecorder(datasets=datasets, methods=methods)
                 else:
                     raise ValueError(f"{measurement} is not appropriate.")
+
+    def save_all(self):
+        for measurement in self.measurements:
+            if measurement == 'population_demixing':
+                self.mixture.save()
+            elif measurement == 'computation_time':
+                self.time.save()
+            elif measurement == 'classification':
+                self.assign.save()
+            elif measurement == 'clustering':
+                self.cluster.save()
+            elif measurement == 'marker_discovery':
+                self.marker.save()
+            elif measurement == 'batch_correction':
+                self.correct.save()
+            else:
+                raise ValueError(f"{measurement} is not appropriate.")

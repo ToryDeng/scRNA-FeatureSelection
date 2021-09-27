@@ -147,7 +147,7 @@ assign.singleR <- function(train_data, test_data, exp_config=NULL){
   train_data <- scater::logNormCounts(train_data) 
   test_data <- scater::logNormCounts(test_data) 
   preds <- SingleR(test=test_data, ref=train_data, labels=train_data$label, de.method="wilcox")
-  preds$labels
+  return(preds$labels)
 }
 
 
@@ -172,7 +172,7 @@ cluster.seurat <- function(data) {
 cluster.tscan <- function(data) {
   require(TSCAN)
   stopifnot(is(data,"SingleCellExperiment"))
-  num_true_cluster <- length(unique(data@colData@listData[["label"]]))
+  num_true_cluster <- dim(unique(colData(data)['label']))[1]
   cnts <- counts(data)
   m_config <- methods.config.tscan
   procdata <- preprocess(as.matrix(cnts),cvcutoff=m_config[['cvcutoff']])
@@ -187,7 +187,7 @@ cluster.tscan <- function(data) {
 cluster.sc3 <- function(data) {
   require(SC3)
   stopifnot(is(data,"SingleCellExperiment"))
-  num_true_cluster <- length(unique(data@colData@listData[["label"]]))
+  num_true_cluster <- dim(unique(colData(data)['label']))[1]
   counts(data) <- as.matrix(counts(data))
   data <- scater::logNormCounts(data)
   m_config <- methods.config.sc3
@@ -240,7 +240,7 @@ cluster.liger <- function(data){
 ### CIDR
 cluster.cidr <- function(counts) {
   require(cidr)
-  K <- length(unique(counts@colData@listData[["label"]]))
+  K <- dim(unique(colData(data)['label']))[1]
   
   sData <- scDataConstructor(counts(counts))
   sData <- determineDropoutCandidates(sData)

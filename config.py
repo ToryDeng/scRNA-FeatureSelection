@@ -26,14 +26,26 @@ class ExperimentConfig:
         }
         # measurements
         self.measurements = {
-            'population_demixing': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # all datasets
-            'marker_discovery': ['muraro', 'segerstolpe', 'baronHuman', 'PBMC3000'],  # 4 datasets
-            'selection_stability': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  #
+            'population_demixing': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
+                                    'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain', 'BaronMousePancreas',
+                                    'LaMannoMouseAdult', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
+                                    'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel', 'PBMCsmall'],  # 13 datasets
 
-            'classification': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # singlecellnet singleR itclust, ck f1
-            'clustering': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # seurat sc3 cidr, bcubed_f1 ARI v-measure
-            'rare_cell_detection': ['xin', 'muraro', 'segerstolpe', 'PBMC3000'],  # f1_rare, bcubed_f1_rare
-            'batch_correction': ['xin+muraro', 'segerstolpe+BaronHumanPancreas'],
+            'marker_discovery': ['baron', 'segerstolpe', 'PBMCsmall'],  # 3 datasets TODO: add simulating data
+            'selection_stability': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
+                                    'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain', 'BaronMousePancreas',
+                                    'LaMannoMouseAdult', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
+                                    'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel', 'PBMCsmall'],  #
+
+            'classification': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
+                               'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain', 'BaronMousePancreas',
+                               'LaMannoMouseAdult', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
+                               'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel', 'PBMCsmall'],
+            # singlecellnet singleR itclust, ck f1
+            #
+            'clustering': ['baron', 'segerstolpe'],  # seurat sc3 cidr, bcubed_f1 ARI v-measure
+            'rare_cell_detection': ['baron', 'segerstolpe'],  # f1_rare, bcubed_f1_rare
+            'batch_correction': ['AztekinTail', 'segerstolpe+baron'],
             # differential expression analysis?
 
             'computation_time': ['PBMC50000',  # large-scale datasets, only use 50000 samples
@@ -41,17 +53,23 @@ class ExperimentConfig:
                                  'VentoHumanPlacenta2000', 'VentoHumanPlacenta5000', 'VentoHumanPlacenta10000',
                                  'VentoHumanPlacenta20000', 'VentoHumanPlacenta50000']
 
-            # , 'muraro', 'segerstolpe', 'PBMC3000'
         }
 
         self.random_seed = 2021
+        # normalization
         self.scale_factor = 1e4
+        # filtering
         self.n_filter_cell = 10
         self.n_filter_gene = 10
-        self.n_genes = [500, 1000, 1500, 2000]
+        self.n_genes = [500, 1000, 1500, 2000]  #
         self.max_timeout = 60 * 30  # 60 seconds per minute * 30 minutes
         self.ensemble_mode = 'importance_sum'
-
+        # batch-effect removal: scGen
+        self.epochs = 500
+        self.batch_size = 128
+        self.use_early_stopping = True
+        self.patience = 20
+        # saving directory
         self.record_path = 'records/'
         self.figure_path = 'figures/'
 

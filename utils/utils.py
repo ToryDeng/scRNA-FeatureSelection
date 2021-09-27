@@ -31,7 +31,7 @@ def get_gene_names(columns):
         gene_names = pd.Series(columns).str.split('\t', expand=True).iloc[:, 1].values
     else:
         gene_names = np.array(columns, dtype=np.str_)
-    regex = re.compile(pattern="[-_:+]")
+    regex = re.compile(pattern="[-_:+()|]")
     vreplace = np.vectorize(lambda x: regex.sub('.', x), otypes=[np.object])
     return vreplace(gene_names)
 
@@ -53,21 +53,26 @@ def load_data(data_name: str) -> ad.AnnData:
         if dataset == 'PBMC':
             adata = ad.read_h5ad(data_cfg.data_path + 'ZhengPBMC92k.h5ad')
             os.chdir(data_cfg.PBMC_markers_path)
-            part1 = np.loadtxt('hsPBMC_markers_10x.txt', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
-            part2 = np.loadtxt('blood_norm_marker.txt', skiprows=1, usecols=[1], dtype=np.str_, delimiter=',')
-            part3 = np.unique(np.loadtxt('CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str_, delimiter=','))
-            markers = np.union1d(np.union1d(part1, part2), part3)
-
-        elif dataset in ['muraro', 'segerstolpe', 'xin', 'baronHuman']:
-            adata = ad.read_h5ad(data_cfg.data_path + f"{dataset.capitalize() + 'Pancreas'}.h5ad")
-            os.chdir(data_cfg.pancreas_markers_path)
-            markers = np.loadtxt('pancreasMarkerGenes.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
-
-        elif dataset in ['ZilionisMouseLungCancer', 'AztekinTail', 'MarquesMouseBrain', 'ZeiselMouseBrain',
-                         'LunSpikeInTropho', 'LunSpikeInBcells', 'VentoHumanPlacenta', 'BaronHumanPancreas',
-                         'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel']:
+            panglao = np.loadtxt('PBMC_panglaoDB.csv', skiprows=1, usecols=[0], dtype=np.str, delimiter=',')
+            cellmarker = np.loadtxt('PBMC_CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str, delimiter=',')
+            markers = np.union1d(panglao, cellmarker)
+        elif dataset == 'PBMCsmall':
             adata = ad.read_h5ad(data_cfg.data_path + f'{dataset}.h5ad')
-
+            os.chdir(data_cfg.PBMC_markers_path)
+            panglao = np.loadtxt('PBMC_panglaoDB.csv', skiprows=1, usecols=[0], dtype=np.str, delimiter=',')
+            cellmarker = np.loadtxt('PBMC_CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str, delimiter=',')
+            markers = np.union1d(panglao, cellmarker)
+        elif dataset in ['muraro', 'segerstolpe', 'xin', 'baron']:
+            adata = ad.read_h5ad(data_cfg.data_path + f"{dataset.capitalize() + 'HumanPancreas'}.h5ad")
+            os.chdir(data_cfg.pancreas_markers_path)
+            panglao = np.loadtxt('pancreas_panglaoDB.csv', skiprows=1, usecols=[0], dtype=np.str, delimiter=',')
+            cellmarker = np.loadtxt('pancreas_CellMarker.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
+            markers = np.union1d(panglao, cellmarker)
+        elif dataset in ['ZilionisMouseLungCancer', 'AztekinTail', 'MarquesMouseBrain', 'ZeiselMouseBrain',
+                         'BaronMousePancreas', 'LaMannoMouseAdult', 'LaMannoHumanEmbryonicMidbrain',
+                         'VentoHumanPlacenta', 'LaMannoHumanEmbryonicStem', 'DengMouseEmbryoDevel',
+                         'GoolamMouseEmbryoDevel', 'GuoHumanTestis', 'QuakeMouseHeart']:
+            adata = ad.read_h5ad(data_cfg.data_path + f'{dataset}.h5ad')
         else:
             raise ValueError(f"data name {data_name} is wrong!")
 
@@ -112,6 +117,9 @@ def load_data(data_name: str) -> ad.AnnData:
         batch_data = [load_data(data_name) for data_name in batch_names]
         adata = ad.concat(batch_data, join="inner", keys=batch_names, label='batch')
         sc.pp.pca(adata)
+
+        head(data_name, head_len=100)
+        adata.uns['data_name'] = data_name
     return adata
 
 
@@ -131,7 +139,9 @@ def delete(path: str):
         os.remove(path)
 
 
-def save_data(adata_train: Optional[ad.AnnData] = None, adata_test: Optional[ad.AnnData] = None,
+def save_data(adata_train: Optional[ad.AnnData] = None,
+              adata_test: Optional[ad.AnnData] = None,
+              use_rep: str = 'celltype',
               task: str = 'assign') -> None:
     """
     Save raw data in tempData dir for classification task and cluster task.
@@ -144,25 +154,26 @@ def save_data(adata_train: Optional[ad.AnnData] = None, adata_test: Optional[ad.
     assert task in ['assign', 'cluster', 'correct'], "Parameter 'task' is wrong."
     if task == 'assign':
         if adata_train is not None:
-            adata_train.to_df().to_csv('tempData/temp_X_train.csv')
-            adata_train.obs['celltype'].to_csv('tempData/temp_y_train.csv')
+            adata_train.to_df().reset_index().to_feather('tempData/temp_X_train.feather')
+            adata_train.obs[use_rep].to_frame().reset_index().to_feather('tempData/temp_y_train.feather')
         if adata_test is not None:
-            adata_test.to_df().to_csv('tempData/temp_X_test.csv')
-            adata_test.obs['celltype'].to_csv('tempData/temp_y_test.csv')
+            adata_test.to_df().reset_index().to_feather('tempData/temp_X_test.feather')
+            adata_test.obs[use_rep].to_frame().reset_index().to_feather('tempData/temp_y_test.feather')
         if adata_train is None and adata_test is None:
             raise ValueError("adata_train and adata_test are both None.")
     elif task == 'cluster':
-        adata_train.to_df().to_csv('tempData/temp_X.csv')
-        adata_train.obs['celltype'].to_csv('tempData/temp_y.csv')
+        adata_train.to_df().reset_index().to_feather('tempData/temp_X.feather')
+        adata_train.obs[use_rep].to_frame().reset_index().to_feather('tempData/temp_y.feather')
     else:  # batch correction
         if 'X_pca_harmony' in adata_train.obsm:
-            representation = 'X_pca_harmony'
+            latent_rep = pd.DataFrame(adata_train.obsm['X_pca_harmony'], index=adata_train.obs_names).reset_index()
         elif 'X_scanorama' in adata_train.obsm:
-            representation = 'X_scanorama'
-        else:
-            representation = 'X_pca'  # scGen
-        pd.DataFrame(adata_train.obsm[representation], index=adata_train.obs_names).to_csv('tempData/temp_X.csv')
-        adata_train.obs['batch'].to_csv('tempData/temp_y.csv')
+            latent_rep = pd.DataFrame(adata_train.obsm['X_scanorama'], index=adata_train.obs_names).reset_index()
+        else:  # corrected data is in adata.X (scGen)
+            latent_rep = pd.DataFrame(adata_train.X, index=adata_train.obs_names).reset_index()
+        latent_rep.columns = latent_rep.columns.astype(np.str)
+        latent_rep.to_feather('tempData/temp_X.feather')
+        adata_train.obs['batch'].to_frame().reset_index().to_feather('tempData/temp_y.feather')
 
 
 def head(name: str, fold='', head_len=65):
@@ -186,49 +197,94 @@ def filter_adata(adata: ad.AnnData, filter_gene: bool = False, filter_cell: bool
         adata = adata[:, gene_mask]
         if adata.raw is not None:
             adata.raw = adata.raw[:, gene_mask].to_adata()
+        if adata.shape[1] < 10:
+            warnings.warn(f"There are (is) only {adata.shape[1]} genes after filtering.")
     if filter_cell:
         cell_mask = sc.pp.filter_cells(adata, min_genes=exp_cfg.n_filter_gene, inplace=False)[0]
         adata = adata[cell_mask, :]
+        if adata.shape[0] < 10:
+            warnings.warn(f"There are (is) only {adata.shape[0]} cells after filtering.")
     if not filter_gene and not filter_cell:
         warnings.warn("function 'filter_adata' is actually not used.", RuntimeWarning)
     return adata
 
 
-def plot_2D(combined_adata: ad.AnnData, dr_method: str = 'umap', mode: str = 'before'):
+def plot_2D(combined_adata: ad.AnnData,
+            dr_method: str = 'umap',
+            fs_method: str = None,
+            bc_method: str = None,
+            data_name: str = None,
+            mode: str = 'before'
+            ):
+    top_celltypes = combined_adata.obs['celltype'].value_counts(ascending=False).index.to_numpy()[:13]
+    combined_adata.obs['celltype_to_plot'] = np.where(
+        np.isin(combined_adata.obs['celltype'], top_celltypes),
+        combined_adata.obs['celltype'],
+        'Others'
+    )
+
     if mode == 'before':
+        if 'X_pca' not in combined_adata.obsm:
+            sc.pp.pca(combined_adata)
         if dr_method == 'umap':
-            sc.pp.neighbors(combined_adata)
+            sc.pp.neighbors(combined_adata, use_rep='X_pca')
             sc.tl.umap(combined_adata)
-            sc.pl.umap(combined_adata, color=['batch', 'celltype'], hspace=0.1, frameon=False,
+            sc.pl.umap(combined_adata,
+                       color=['batch', 'celltype_to_plot'],
+                       hspace=0.08,
+                       wspace=0.01,
+                       frameon=False,
                        palette=sc.pl.palettes.vega_20_scanpy,
-                       save=': ' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+                       save=f': {data_name}-{fs_method}-' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
         elif dr_method == 'tsne':
-            sc.tl.tsne(combined_adata)
-            sc.pl.tsne(combined_adata, color=['batch', 'celltype'], hspace=0.1, frameon=False,
+            sc.tl.tsne(combined_adata, use_rep='X_pca')
+            sc.pl.tsne(combined_adata,
+                       color=['batch', 'celltype_to_plot'],
+                       hspace=0.08,
+                       wspace=0.01,
+                       frameon=False,
                        palette=sc.pl.palettes.vega_20_scanpy,
-                       save=': ' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+                       save=f': {data_name}-{fs_method}-' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png',
+                       show=False)
 
     elif mode == 'after':
-        if 'X_pca_harmony' in combined_adata.obsm:
+        if bc_method == 'harmony':
             representation = 'X_pca_harmony'
-        elif 'X_scanorama' in combined_adata.obsm:
+            print(bc_method, combined_adata.obsm[representation].shape)
+        elif bc_method == 'scanorama':
             representation = 'X_scanorama'
-        else:
+            print(bc_method, combined_adata.obsm[representation].shape)
+        elif bc_method == 'scgen':
+            sc.pp.pca(combined_adata)  # execute pca anyway
             representation = 'X_pca'  # scGen
+            print(bc_method, combined_adata.obsm[representation].shape)
+        else:
+            raise AttributeError(f"{bc_method} is wrong.")
         print(f"Use {representation} to plot.")
+
         if dr_method == 'umap':
             sc.pp.neighbors(combined_adata, use_rep=representation)
             sc.tl.umap(combined_adata)
-            sc.pl.umap(combined_adata, color=['batch', 'celltype'], hspace=0.1, frameon=False,
+            sc.pl.umap(combined_adata,
+                       color=['batch', 'celltype_to_plot'],
+                       hspace=0.08,
+                       wspace=0.01,
+                       frameon=False,
                        palette=sc.pl.palettes.vega_20_scanpy,
-                       save=': ' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+                       save=f': {data_name}-{fs_method}-{bc_method}-{combined_adata.shape[1]}-' +
+                            '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png',
+                       show=False)
         elif dr_method == 'tsne':
-            if representation == 'X_pca' and representation not in combined_adata.obsm:
-                sc.pp.pca(combined_adata, random_state=exp_cfg.random_seed)  # scGen returns corrected adata
             sc.tl.tsne(combined_adata, use_rep=representation)
-            sc.pl.tsne(combined_adata, color=['batch', 'celltype'], hspace=0.1, frameon=False,
+            sc.pl.tsne(combined_adata,
+                       color=['batch', 'celltype_to_plot'],
+                       hspace=0.08,
+                       wspace=0.01,
+                       frameon=False,
                        palette=sc.pl.palettes.vega_20_scanpy,
-                       save=': ' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+                       save=f': {data_name}-{fs_method}-{bc_method}-{combined_adata.shape[1]}-' +
+                            '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png',
+                       show=False)
         else:
             raise NotImplementedError(f"{dr_method} have not been implemented yet.")
     else:
@@ -241,6 +297,10 @@ def normalize_importances(importances: np.ndarray) -> np.ndarray:
 
 
 class HiddenPrints:
+    """
+    Hide prints
+
+    """
     def __enter__(self):
         self._original_stdout = sys.stdout
         self._original_stderr = sys.stderr

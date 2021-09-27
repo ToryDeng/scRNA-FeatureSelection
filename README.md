@@ -1,18 +1,18 @@
 # scRNA-FeatureSelection
-Evaluation of several HVG selection methods (including ensemble gene selection methods).
+Evaluation of several gene selection methods (including ensemble gene selection methods).
 
 ## Program Structure
-    models-          # some feature selection methods in python
+    selection-       # some feature selection methods in python
       fisher_score.py      # calculate fisher score
       nearest_centroid.py  # nearest shrunken centroid 
-      scGeneFit.py         # scGeneFit method for feature selection
+      scgenefit.py         # scGeneFit method for feature selection
     utils-           # functions about data processing and several feature selection methods
       RCode-               # R scripts
+      classification.py    # classification algorithms in Python
       evaluation.py        # evaluat specific feature selection methods 
       importance.py        # calculate importance of every gene and select the most important ones   
       record.py            # record performance during evaluation
-      utils.py             # data processing functions 
-      ensemble_gene_selection.py    # the ensemble gene selection function
+      utils.py             # data processing functions
     tempData-        # store temporary data
     records-         # store records of evaluation
     main.py          # the main function
@@ -31,10 +31,11 @@ Evaluation of several HVG selection methods (including ensemble gene selection m
 | Seurat       | ✔ | ✔ | Python | [2] |
 | Deviance     | ✔ | ✔ | R | [3] |
 | M3Drop       | ✔ | ✔ | R | [4] |
-| scmap   | ✔ | ✔ | R | [5] |
+| scmap        | ✔ | ✔ | R | [5] |
 | scGeneFit    | ✔ | ❌ | Python | [6] |
-| CellRanger     | ✔ | ✔ |  Python     | [7] |
+| CellRanger   | ✔ | ✔ |  Python | [7] |
 | Fisher Score | ✔ | ❌ | Python | [8] |
+| FEAST        | ✔ | ✔ |  R     |  [9] |
 
 >1. Klassen M, Kim N. Nearest Shrunken Centroid as Feature Selection of Microarray Data[C]//CATA. 2009: 227-232.
 >2. Stuart T, Butler A, Hoffman P, et al. Comprehensive integration of single-cell data[J]. Cell, 2019, 177(7): 1888-1902. e21.  
@@ -44,6 +45,7 @@ Evaluation of several HVG selection methods (including ensemble gene selection m
 >6. Dumitrascu B, Villar S, Mixon D G, et al. Optimal marker gene selection for cell type discrimination in single cell analyses[J]. Nature communications, 2021, 12(1): 1-8.  
 >7. Zheng G X Y, Terry J M, Belgrader P, et al. Massively parallel digital transcriptional profiling of single cells[J]. Nature communications, 2017, 8(1): 1-12.
 >8. Li J, Cheng K, Wang S, et al. Feature selection: A data perspective[J]. ACM Computing Surveys (CSUR), 2017, 50(6): 1-45.
+>9. Su K, Yu T, Wu H. Accurate feature selection improves single-cell RNA-seq cell clustering[J]. Briefings in Bioinformatics, 2021. 
 
 ## Datasets
 - **PBMC**  
@@ -56,10 +58,10 @@ Evaluation of several HVG selection methods (including ensemble gene selection m
 ## Marker Genes
 | Dataset | Marker Genes in Data |
 | :-----: | :-----------: |
-|'PBMC*'      | 287 |
-| 'muraro'    | 313 |
-|'segerstolpe'| 320 |
-|'xin'        | 321 |
+|PBMC3k     |   413   |
+| baron     |   469   |
+|segerstolpe|   476   |
+
 
 ## Normalization
 The normalization method in **Seurat**.
@@ -82,17 +84,16 @@ The normalization method in **Seurat**.
 ## Examples
 ### Evaluation of Single Gene Selection Method
 ```python
-from utils.evaluation import evaluate_assign_methods, evaluate_cluster_methods
+from utils.evaluation import evaluate_feature_selection_methods
 
-evaluate_assign_methods(dataset='xin', methods=['rf', 'xgb', 'nsc', 'var'])
-evaluate_cluster_methods(dataset='muraro', methods=['cellassign', 'deviance'])
+evaluate_feature_selection_methods(measurements=['marker_discovery'], methods=['rf', 'xgb', 'nsc', 'var'])
 ```
 ### Evaluation of Ensemble Gene Selection Method
 ```python
-from utils.evaluation import evaluate_assign_methods
+from utils.evaluation import evaluate_feature_selection_methods
 
 
-evaluate_assign_methods(dataset='PBMC20%', methods=['rf+fisher_score', 'rf', 'fisher_score'])
+evaluate_feature_selection_methods(measurements=['marker_discovery'], methods=['rf+fisher_score'])
 ```
 All the records will be stored in the directory ***records/***.
 
@@ -100,8 +101,6 @@ All the records will be stored in the directory ***records/***.
 ## Notes
 
 1. By specifying data type in **config.py**, you can choose which type of data the methods will use.
-2. Parameter ***'methods'*** must be a list. If ***'methods'*** contains 'scGeneFit' and dataset is PBMC, then all the 
-   methods will only run on PBMC5. This is because the scGeneFit written by Python is very slow and occupies much system 
-   resource when the number of cells is more than 3000.
+2. Parameter ***'methods'*** must be a list.
 
 

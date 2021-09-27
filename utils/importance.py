@@ -3,6 +3,8 @@ from collections import defaultdict
 import anndata as ad
 import pandas as pd
 import timeout_decorator
+import warnings
+
 from utils.utils import get_gene_names, save_data, delete, normalize_importances
 from utils.record import TimeRecorder
 from config import AssignConfig, ClusterConfig, exp_cfg, assign_cfg
@@ -28,11 +30,15 @@ import os
 
 
 def most_important_genes(importances: Optional[np.ndarray],
-                         all_features: Union[np.ndarray, List[Tuple]]
-                         ) -> List[Tuple]:
+                         all_features: Union[np.ndarray, List[Tuple]],
+                         n_gene_reduce: int = None,
+                         fraction: float = None
+                         ) -> Union[List[Tuple], Tuple]:
     """
     Select max feature_num important genes according to importance array.
 
+    :param n_gene_reduce: number
+    :param fraction:
     :param importances: importance of each gene
     :param all_features: names of all genes
     :return: list of the most important genes and importance of which number equals to
@@ -47,13 +53,22 @@ def most_important_genes(importances: Optional[np.ndarray],
         na_mask = np.isnan(importances.astype(np.float))
         importances, all_features = importances[~na_mask].astype(np.float), all_features[~na_mask]
         all_idx = np.argsort(importances)[::-1]
-        fea_impo_list = []
-        for n_gene in exp_cfg.n_genes:
-            if importances.shape[0] >= n_gene:
-                fea_impo_list.append((all_features[all_idx[:n_gene]], importances[all_idx[:n_gene]]))
+        if n_gene_reduce is None and fraction is None:
+            fea_impo_list = []
+            for n_gene in exp_cfg.n_genes:
+                if importances.shape[0] >= n_gene:
+                    fea_impo_list.append((all_features[all_idx[:n_gene]], importances[all_idx[:n_gene]]))
+                else:
+                    fea_impo_list.append((all_features[all_idx], importances[all_idx]))
+            return fea_impo_list
+        else:
+            if n_gene_reduce is not None:
+                assert n_gene_reduce > 1, AttributeError("n_gene_reduce must larger than 1.")
+                n_selected = all_features.shape[0] - n_gene_reduce
             else:
-                fea_impo_list.append((all_features[all_idx], importances[all_idx]))
-        return fea_impo_list
+                assert 0 < fraction < 1, AttributeError("fraction must between 0 and 1.")
+                n_selected = int(all_features.shape[0] * fraction)
+            return all_features[all_idx[:n_selected]], importances[all_idx[:n_selected]]
 
 
 def execute_Rscript(data_name: str,
@@ -75,7 +90,7 @@ def execute_Rscript(data_name: str,
         cmd.append('>& /dev/null')
     command = ' '.join(cmd)
     os.system(command) if method != 'cellassign' else os.system('export MKL_THREADING_LAYER=GNU && ' + command)
-    gene_path = f'tempData/{data_name}_markers_{method}.csv'
+    gene_path = f'tempData/{data_name}_genes_{method}.csv'
     return gene_path
 
 
@@ -83,7 +98,8 @@ def execute_Rscript(data_name: str,
 def cal_feature_importance(method: str,
                            adata: ad.AnnData,
                            recorder: Optional[TimeRecorder],
-                           config: Union[AssignConfig, ClusterConfig]
+                           config: Union[AssignConfig, ClusterConfig],
+                           use_rep: str = 'celltype',
                            ):
     """
     Calculate importance of each feature using specified method.
@@ -97,7 +113,7 @@ def cal_feature_importance(method: str,
     """
     assert config is not None, "config must exist."
     if config.method_lan[method] == 'python':  # python
-        y, all_features = adata.obs['celltype'].values, adata.var_names.values
+        y, all_features = adata.obs[use_rep].values, adata.var_names.values
         if config.method_on[method] == 'raw':
             X = adata.raw.X
             adata = adata.raw.to_adata()
@@ -106,15 +122,15 @@ def cal_feature_importance(method: str,
         if recorder is not None:
             recorder.py_method_start()
         if method == 'rf':  # random forest
-            forest = RandomForestClassifier(n_jobs=15, random_state=0, verbose=0).fit(X, y)
+            forest = RandomForestClassifier(n_jobs=-1, random_state=0, verbose=0).fit(X, y)
             importance = forest.feature_importances_
         elif method == 'lgb':
-            lgb = LGBMClassifier(n_jobs=15, random_state=0).fit(X, y)
+            lgb = LGBMClassifier(n_jobs=-1, random_state=0).fit(X, y)
             importance = lgb.feature_importances_
         elif method == 'xgb':
             le = LabelEncoder()
             y = le.fit_transform(y)
-            xgb = XGBClassifier(eval_metric='mlogloss', use_label_encoder=False, nthread=15).fit(X, y)
+            xgb = XGBClassifier(eval_metric='mlogloss', use_label_encoder=False, nthread=-1).fit(X, y)
             importance = xgb.feature_importances_
         elif method == 'seurat':
             sc.pp.highly_variable_genes(adata, flavor='seurat_v3', n_top_genes=exp_cfg.n_genes[-1])
@@ -145,9 +161,9 @@ def cal_feature_importance(method: str,
     else:  # R
         # save data first
         if config.method_on[method] == 'raw':
-            save_data(adata.raw.to_adata(), task='assign' if isinstance(config, AssignConfig) else 'cluster')
+            save_data(adata.raw.to_adata(), task='assign' if isinstance(config, AssignConfig) else 'cluster', use_rep=use_rep)
         else:
-            save_data(adata, task='assign' if isinstance(config, AssignConfig) else 'cluster')
+            save_data(adata, task='assign' if isinstance(config, AssignConfig) else 'cluster', use_rep=use_rep)
 
         if method == 'm3drop':
             genes = pd.read_csv(execute_Rscript(adata.uns['data_name'], method),
@@ -173,11 +189,17 @@ def cal_feature_importance(method: str,
 def select_genes(method: str,
                  adata: ad.AnnData,
                  recorder: Optional[TimeRecorder] = None,
-                 config: Union[AssignConfig, ClusterConfig] = assign_cfg
+                 config: Union[AssignConfig, ClusterConfig] = assign_cfg,
+                 n_gene_reduce=None,
+                 fraction=None,
+                 use_rep: str = 'celltype'
                  ):
     """
         Run ensemble selection method or single selection method according to the method name.
 
+        :param n_gene_reduce:
+        :param fraction:
+        :param use_rep:
         :param method: feature selection method
         :param adata: the anndata instance containing raw and norm data
         :param recorder: performance recorder
@@ -215,7 +237,16 @@ def select_genes(method: str,
             final_result = most_important_genes(sorted_result[1], sorted_result[0])  # importance, all features
         else:  # single method
             final_result = most_important_genes(
-                *cal_feature_importance(method, adata, recorder=recorder, config=config))
+                *cal_feature_importance(method, adata, recorder=recorder, config=config, use_rep=use_rep),
+                n_gene_reduce=n_gene_reduce,
+                fraction=fraction)
     except timeout_decorator.timeout_decorator.TimeoutError:
         final_result = None
+        warnings.warn(f"{method} is running out of time.")
+    except FileNotFoundError:
+        final_result = None
+        warnings.warn(f"The R method {method} failed on dataset {adata.uns['data_name']}.")
+    except MemoryError as e:
+        final_result = None
+        print(e)
     return final_result
