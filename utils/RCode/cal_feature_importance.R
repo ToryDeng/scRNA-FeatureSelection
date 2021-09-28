@@ -5,7 +5,7 @@ highly_variable_gene.generate_HVGs <- function(method, data, data_name, n_genes)
          m3drop = highly_variable_gene.m3drop(data, data_name),
          scmap = highly_variable_gene.scmap(data, data_name, n_genes),
          stop("No such marker gene generating method")
-         )
+  )
 }
 
 highly_variable_gene.feast <- function(data, data_name){
@@ -79,17 +79,17 @@ data_name <- args[1]
 method <- args[2]
 n_genes <- as.numeric(args[3])
 
-if("temp_X.csv" %in% list.files() & "temp_y.csv" %in% list.files("tempData")){
+if("temp_X.feather" %in% list.files() & "temp_y.feather" %in% list.files("tempData")){
   sce <- load_sce("all")
-} else if("temp_X_train.csv" %in% list.files("tempData") & "temp_y_train.csv" %in% list.files("tempData")){
+} else if("temp_X_train.feather" %in% list.files("tempData") & "temp_y_train.feather" %in% list.files("tempData")){
   sce <- load_sce("train")
 } else {
   stop("ERROR: There are no generating files.")
 }
 
-#method <- "m3drop"
-#data_name <- "ZilionisMouseLungCancer"
-#n_genes <- 500
+method <- "deviance"
+data_name <- "baron"
+n_genes <- 500
 
 highly_variable_gene.generate_HVGs(method, sce, data_name, n_genes)
 

@@ -3,12 +3,15 @@ source("/home/tdeng/SingleCell/scRNA-FeatureSelection/utils/RCode/load_sce.R")
 require(SingleCellExperiment)
 require(Hmisc)
 
+
 setwd('/home/tdeng/SingleCell/scRNA-FeatureSelection/')
+
 sce_all <- load_sce("all")
 cluster_methods <- c('seurat','sc3', 'cidr')#  'tscan', , 'cidr', 'liger', 'scmap'
 
 for (i in 1:length(cluster_methods)){
   cluster_result <- run_cluster_methods(cluster_methods[i], sce_all)
+
   write.csv(cluster_result, stringr::str_glue("tempData/temp_{cluster_methods[i]}.csv"), row.names = FALSE)
 }
 

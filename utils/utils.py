@@ -120,6 +120,7 @@ def load_data(data_name: str) -> ad.AnnData:
 
         head(data_name, head_len=100)
         adata.uns['data_name'] = data_name
+
     return adata
 
 
@@ -137,7 +138,6 @@ def delete(path: str):
             delete(p) if os.path.isdir(p) else os.remove(p)  # recursion
     else:
         os.remove(path)
-
 
 def save_data(adata_train: Optional[ad.AnnData] = None,
               adata_test: Optional[ad.AnnData] = None,
@@ -207,7 +207,6 @@ def filter_adata(adata: ad.AnnData, filter_gene: bool = False, filter_cell: bool
     if not filter_gene and not filter_cell:
         warnings.warn("function 'filter_adata' is actually not used.", RuntimeWarning)
     return adata
-
 
 def plot_2D(combined_adata: ad.AnnData,
             dr_method: str = 'umap',

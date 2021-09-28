@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="tdeng@52.83.218.83:22" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="tdeng@52.83.218.83:22">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/tdeng/SingleCell/scRNA-FeatureSelection" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="SingleCell/scRNA-FeatureSelection" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
     </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
   </component>
 </project>
