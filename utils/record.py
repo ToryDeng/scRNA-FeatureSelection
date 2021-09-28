@@ -81,7 +81,7 @@ class MixtureRecorder(PerformanceRecorder):
         self.silhouette_coef = pd.DataFrame(
             data=np.zeros((len(exp_cfg.n_genes) * len(datasets), len(methods))),
             index=pd.MultiIndex.from_product([datasets, exp_cfg.n_genes]), columns=methods
-        )
+        ).sort_index()
 
     def record(self, dataset: str, n_gene: int, filtered_adata: ad.AnnData):
         try:
@@ -112,11 +112,11 @@ class MarkerRecorder(PerformanceRecorder):
         self.markers_found = pd.DataFrame(
             data=np.zeros((len(datasets) * len(exp_cfg.n_genes), len(methods))),
             index=pd.MultiIndex.from_product([datasets, exp_cfg.n_genes]), columns=methods
-        )
+        ).sort_index()
         self.MRR = pd.DataFrame(
             data=np.zeros((len(datasets) * len(exp_cfg.n_genes), len(methods))),
             index=pd.MultiIndex.from_product([datasets, exp_cfg.n_genes]), columns=methods
-        )
+        ).sort_index()
 
     @staticmethod
     def cal_markers_found_and_MRR(total_markers: np.ndarray, single_selected_result: tuple):
@@ -167,7 +167,7 @@ class TimeRecorder(PerformanceRecorder):
         super(TimeRecorder, self).__init__(datasets, methods)
         self.computation_time = pd.DataFrame(
             data=np.zeros((len(datasets), len(methods))), index=datasets, columns=methods
-        )
+        ).sort_index()
 
     def py_method_start(self):
         self.start_time = datetime.datetime.now()
@@ -211,7 +211,7 @@ class BatchCorrectionRecorder(PerformanceRecorder):
             np.zeros((len(datasets) * len(exp_cfg.n_genes) * len(correct_methods) * len(correct_metrics), len(methods))),
             index=pd.MultiIndex.from_product([datasets, exp_cfg.n_genes, correct_methods, correct_metrics]),
             columns=methods
-        )
+        ).sort_index()
 
     def record(self, dataset: str, n_gene: int, correction_result: dict):
         for key, value in correction_result.items():
@@ -243,19 +243,19 @@ class ClassificationRecorder(PerformanceRecorder):
             index=pd.MultiIndex.from_product(
                 [datasets, exp_cfg.n_genes, range(assign_cfg.n_folds), assign_methods, assign_metrics]),
             columns=methods
-        )
+        ).sort_index()
         self.rare_metric = pd.DataFrame(
             np.zeros((len(datasets) * len(exp_cfg.n_genes) * assign_cfg.n_folds * len(assign_methods), len(methods))),
             # rare F1-score
             index=pd.MultiIndex.from_product([datasets, exp_cfg.n_genes, range(assign_cfg.n_folds), assign_methods]),
             columns=methods
-        )
+        ).sort_index()
         self.selected_genes = defaultdict(list)  # for stability
         self.stability = pd.DataFrame(
             np.zeros((len(datasets) * len(exp_cfg.n_genes), len(methods))),
             index=pd.MultiIndex.from_product([datasets, exp_cfg.n_genes]),
             columns=methods
-        )
+        ).sort_index()
 
     def set_rare_type(self, adata: ad.AnnData):
         cell_type_counts = adata.obs['celltype'].value_counts(ascending=True)
