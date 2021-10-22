@@ -119,7 +119,9 @@ class MarkerRecorder(PerformanceRecorder):
         ).sort_index()
 
     @staticmethod
-    def cal_markers_found_and_MRR(total_markers: np.ndarray, single_selected_result: tuple):
+    def cal_markers_found_and_MRR(total_markers: np.ndarray,
+                                  total_marker_weight: np.ndarray,
+                                  single_selected_result: tuple):
         """
         Calculate proportion of selected marker genes and MRR if importances exist, otherwise only calculate the proportion.
 
@@ -129,7 +131,7 @@ class MarkerRecorder(PerformanceRecorder):
         """
         selected_genes = single_selected_result[0]
         rank = False if len(single_selected_result) == 1 else True
-        markers_found_rate = np.intersect1d(total_markers, selected_genes).shape[0] / total_markers.shape[0]
+        markers_found_rate = total_marker_weight[np.isin(total_markers, selected_genes)].sum() / total_marker_weight.sum()
         if rank:
             rank_list = np.argwhere(np.isin(selected_genes, total_markers))
             if len(rank_list) == 0:
@@ -142,8 +144,12 @@ class MarkerRecorder(PerformanceRecorder):
             MRR = 0
         return markers_found_rate, MRR
 
-    def record(self, dataset: str, n_gene: int, all_markers: np.ndarray, single_selected_result: tuple):
-        markers_found_rate, MRR = self.cal_markers_found_and_MRR(all_markers, single_selected_result)
+    def record(self, dataset: str,
+               n_gene: int,
+               all_markers: np.ndarray,
+               all_marker_weight: np.ndarray,
+               single_selected_result: tuple):
+        markers_found_rate, MRR = self.cal_markers_found_and_MRR(all_markers, all_marker_weight, single_selected_result)
         self.markers_found.loc[(dataset, n_gene), self.current_method] = markers_found_rate
         self.MRR.loc[(dataset, n_gene), self.current_method] = MRR
 
@@ -205,7 +211,7 @@ class TimeRecorder(PerformanceRecorder):
 class BatchCorrectionRecorder(PerformanceRecorder):
     def __init__(self, datasets: List[str], methods: List[str]):
         super(BatchCorrectionRecorder, self).__init__(datasets, methods)
-        correct_methods = ['scgen', 'harmony', 'scanorama']
+        correct_methods = ['harmony', 'scanorama']  # 'scgen',
         correct_metrics = ['kBET', 'iLISI']
         self.correction = pd.DataFrame(
             np.zeros((len(datasets) * len(exp_cfg.n_genes) * len(correct_methods) * len(correct_metrics), len(methods))),
@@ -235,7 +241,7 @@ class BatchCorrectionRecorder(PerformanceRecorder):
 class ClassificationRecorder(PerformanceRecorder):
     def __init__(self, datasets: List[str], methods: List[str]):
         super(ClassificationRecorder, self).__init__(datasets, methods)
-        assign_methods = ['singlecellnet', 'singleR', 'scanvi']
+        assign_methods = ['singlecellnet', 'singleR']  # , 'scanvi'
         assign_metrics = ['f1_score', 'cohen_kappa_score']
         self.overall_metrics = pd.DataFrame(
             np.zeros((len(datasets) * len(exp_cfg.n_genes) * assign_cfg.n_folds * len(assign_methods) * len(

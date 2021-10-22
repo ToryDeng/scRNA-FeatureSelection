@@ -7,9 +7,10 @@ from typing import Optional
 import anndata as ad
 import numpy as np
 import pandas as pd
-import scanpy as sc
-from sklearn.model_selection import train_test_split
+import matplotlib
 
+matplotlib.use('agg')
+import scanpy as sc
 from config import data_cfg, exp_cfg
 
 
@@ -45,30 +46,41 @@ def load_data(data_name: str) -> ad.AnnData:
     :return: anndata object with raw_data, norm_data and markers in data, or the concatenated data.
     """
     sc.settings.verbosity = 1
-    markers = None
+    panglao, cellmarker, markers = None, None, None
     dataset, n_samples = re.match(r"([a-zA-Z]*)([0-9]*)", data_name).groups()
 
     project_path = os.getcwd()
     if '+' not in data_name:
-        if dataset == 'PBMC':
-            adata = ad.read_h5ad(data_cfg.data_path + 'ZhengPBMC92k.h5ad')
+        if dataset.startswith('PBMC'):
             os.chdir(data_cfg.PBMC_markers_path)
-            panglao = np.loadtxt('PBMC_panglaoDB.csv', skiprows=1, usecols=[0], dtype=np.str, delimiter=',')
-            cellmarker = np.loadtxt('PBMC_CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str, delimiter=',')
-            markers = np.union1d(panglao, cellmarker)
-        elif dataset == 'PBMCsmall':
+            panglao = np.unique(np.loadtxt('PBMC_panglaoDB.csv', skiprows=1, usecols=[0], dtype=np.str, delimiter=','))
+            cellmarker = np.unique(np.loadtxt('PBMC_CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str, delimiter=','))
+            markers = np.union1d(panglao, cellmarker)  # either in PanglaoDB or in CellMarker
+            if dataset == 'PBMC':
+                adata = ad.read_h5ad(data_cfg.data_path + 'ZhengPBMC92k.h5ad')
+            elif dataset == 'PBMCsmall':
+                adata = ad.read_h5ad(data_cfg.data_path + f'{dataset}.h5ad')
+            else:
+                raise AttributeError(f"data name '{dataset}' is wrong.")
+        elif dataset == 'simulatingPBMCsmall':
             adata = ad.read_h5ad(data_cfg.data_path + f'{dataset}.h5ad')
-            os.chdir(data_cfg.PBMC_markers_path)
-            panglao = np.loadtxt('PBMC_panglaoDB.csv', skiprows=1, usecols=[0], dtype=np.str, delimiter=',')
-            cellmarker = np.loadtxt('PBMC_CellMarker.csv', skiprows=1, usecols=[1], dtype=np.str, delimiter=',')
-            markers = np.union1d(panglao, cellmarker)
+            os.chdir(data_cfg.sim_markers_path)
+            markers = np.unique(np.loadtxt("pbmc3k_depr0.0045_DEGenes.csv", delimiter=',', skiprows=1, dtype=np.object).flatten())
+            markers = markers[markers != 'NA']
         elif dataset in ['muraro', 'segerstolpe', 'xin', 'baron']:
             adata = ad.read_h5ad(data_cfg.data_path + f"{dataset.capitalize() + 'HumanPancreas'}.h5ad")
             os.chdir(data_cfg.pancreas_markers_path)
             panglao = np.loadtxt('pancreas_panglaoDB.csv', skiprows=1, usecols=[0], dtype=np.str, delimiter=',')
             cellmarker = np.loadtxt('pancreas_CellMarker.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
             markers = np.union1d(panglao, cellmarker)
-        elif dataset in ['ZilionisMouseLungCancer', 'AztekinTail', 'MarquesMouseBrain', 'ZeiselMouseBrain',
+        elif dataset == 'ZeiselMouseBrain':
+            adata = ad.read_h5ad(data_cfg.data_path + f'{dataset}.h5ad')
+            os.chdir(data_cfg.mouse_brain_markers_path)
+            panglao = np.loadtxt('MouseBrain_panglaoDB.csv', skiprows=1, usecols=[1], dtype=np.str_, delimiter=',')
+            cellmarker = np.loadtxt('MouseBrain_CellMarker.csv', skiprows=1, usecols=[0], dtype=np.str_, delimiter=',')
+            markers = np.union1d(panglao, cellmarker)
+            print(panglao.shape, cellmarker.shape, markers.shape, np.intersect1d(panglao, cellmarker).shape)
+        elif dataset in ['ZilionisMouseLungCancer', 'AztekinTail', 'MarquesMouseBrain',
                          'BaronMousePancreas', 'LaMannoMouseAdult', 'LaMannoHumanEmbryonicMidbrain',
                          'VentoHumanPlacenta', 'LaMannoHumanEmbryonicStem', 'DengMouseEmbryoDevel',
                          'GoolamMouseEmbryoDevel', 'GuoHumanTestis', 'QuakeMouseHeart']:
@@ -83,8 +95,13 @@ def load_data(data_name: str) -> ad.AnnData:
         adata.obs_names_make_unique(join='.')
         adata.var_names_make_unique(join='.')
 
-        if markers is not None:
+        if markers is not None:  # baron, segerstolpe, PBMC3k, simulated PBMC3k
             adata.uns['markers'] = np.intersect1d(markers, adata.var_names)  # only contains existing genes
+            if panglao is not None and cellmarker is not None:  # only in this case the marker weight exists
+                adata.uns['marker_weight'] = np.where(np.isin(adata.uns['markers'], np.intersect1d(panglao, cellmarker)), 2., 1.)
+            else:  # simulated PBMC3k
+                adata.uns['marker_weight'] = np.ones_like(adata.uns['markers'])
+
         if dataset == 'VentoHumanPlacenta':  # at least 2 samples are in dataset, for computation time test
             adata = adata[adata.obs['celltype'].isin(adata.obs['celltype'].value_counts().index[:12].to_numpy()), :]
         head(data_name, head_len=100)
@@ -139,6 +156,7 @@ def delete(path: str):
     else:
         os.remove(path)
 
+
 def save_data(adata_train: Optional[ad.AnnData] = None,
               adata_test: Optional[ad.AnnData] = None,
               use_rep: str = 'celltype',
@@ -170,7 +188,8 @@ def save_data(adata_train: Optional[ad.AnnData] = None,
         elif 'X_scanorama' in adata_train.obsm:
             latent_rep = pd.DataFrame(adata_train.obsm['X_scanorama'], index=adata_train.obs_names).reset_index()
         else:  # corrected data is in adata.X (scGen)
-            latent_rep = pd.DataFrame(adata_train.X, index=adata_train.obs_names).reset_index()
+            # latent_rep = pd.DataFrame(adata_train.X, index=adata_train.obs_names).reset_index()
+            raise KeyError("Could not find representation for harmony or scanorama.")
         latent_rep.columns = latent_rep.columns.astype(np.str)
         latent_rep.to_feather('tempData/temp_X.feather')
         adata_train.obs['batch'].to_frame().reset_index().to_feather('tempData/temp_y.feather')
@@ -208,12 +227,13 @@ def filter_adata(adata: ad.AnnData, filter_gene: bool = False, filter_cell: bool
         warnings.warn("function 'filter_adata' is actually not used.", RuntimeWarning)
     return adata
 
+
 def plot_2D(combined_adata: ad.AnnData,
             dr_method: str = 'umap',
             fs_method: str = None,
             bc_method: str = None,
             data_name: str = None,
-            mode: str = 'before'
+            mode: str = 'before'  # before or after batch correction
             ):
     top_celltypes = combined_adata.obs['celltype'].value_counts(ascending=False).index.to_numpy()[:13]
     combined_adata.obs['celltype_to_plot'] = np.where(
@@ -230,20 +250,21 @@ def plot_2D(combined_adata: ad.AnnData,
             sc.tl.umap(combined_adata)
             sc.pl.umap(combined_adata,
                        color=['batch', 'celltype_to_plot'],
-                       hspace=0.08,
-                       wspace=0.01,
+                       hspace=0.15,
+                       wspace=0.15,
                        frameon=False,
                        palette=sc.pl.palettes.vega_20_scanpy,
-                       save=f': {data_name}-{fs_method}-' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png', show=False)
+                       save=f': {data_name}-{fs_method}-{combined_adata.shape[1]}-' + f'{mode}.png',
+                       show=False)
         elif dr_method == 'tsne':
             sc.tl.tsne(combined_adata, use_rep='X_pca')
             sc.pl.tsne(combined_adata,
                        color=['batch', 'celltype_to_plot'],
-                       hspace=0.08,
-                       wspace=0.01,
+                       hspace=0.15,
+                       wspace=0.15,
                        frameon=False,
                        palette=sc.pl.palettes.vega_20_scanpy,
-                       save=f': {data_name}-{fs_method}-' + '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png',
+                       save=f': {data_name}-{fs_method}-{combined_adata.shape[1]}-' + f'{mode}.png',
                        show=False)
 
     elif mode == 'after':
@@ -266,23 +287,21 @@ def plot_2D(combined_adata: ad.AnnData,
             sc.tl.umap(combined_adata)
             sc.pl.umap(combined_adata,
                        color=['batch', 'celltype_to_plot'],
-                       hspace=0.08,
-                       wspace=0.01,
+                       hspace=0.15,
+                       wspace=0.15,
                        frameon=False,
                        palette=sc.pl.palettes.vega_20_scanpy,
-                       save=f': {data_name}-{fs_method}-{bc_method}-{combined_adata.shape[1]}-' +
-                            '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png',
+                       save=f': {data_name}-{fs_method}-{bc_method}-{combined_adata.shape[1]}-' + f'{mode}.png',
                        show=False)
         elif dr_method == 'tsne':
             sc.tl.tsne(combined_adata, use_rep=representation)
             sc.pl.tsne(combined_adata,
                        color=['batch', 'celltype_to_plot'],
-                       hspace=0.08,
-                       wspace=0.01,
+                       hspace=0.15,
+                       wspace=0.15,
                        frameon=False,
                        palette=sc.pl.palettes.vega_20_scanpy,
-                       save=f': {data_name}-{fs_method}-{bc_method}-{combined_adata.shape[1]}-' +
-                            '+'.join(combined_adata.obs['batch'].unique().tolist()) + f'-{mode}.png',
+                       save=f': {data_name}-{fs_method}-{bc_method}-{combined_adata.shape[1]}-' + f'{mode}.png',
                        show=False)
         else:
             raise NotImplementedError(f"{dr_method} have not been implemented yet.")
@@ -300,6 +319,7 @@ class HiddenPrints:
     Hide prints
 
     """
+
     def __enter__(self):
         self._original_stdout = sys.stdout
         self._original_stderr = sys.stderr

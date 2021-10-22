@@ -30,22 +30,24 @@ class ExperimentConfig:
                                     'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain', 'BaronMousePancreas',
                                     'LaMannoMouseAdult', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
                                     'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel', 'PBMCsmall'],  # 13 datasets
+            #
 
-            'marker_discovery': ['baron', 'segerstolpe', 'PBMCsmall'],  # 3 datasets TODO: add simulating data
+            'marker_discovery': ['baron', 'simulatingPBMCsmall'],  # 4 datasets  , 'segerstolpe', 'PBMCsmall'
             'selection_stability': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
                                     'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain', 'BaronMousePancreas',
                                     'LaMannoMouseAdult', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
                                     'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel', 'PBMCsmall'],  #
 
-            'classification': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
-                               'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain', 'BaronMousePancreas',
-                               'LaMannoMouseAdult', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
-                               'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel', 'PBMCsmall'],
+            'classification': ['BaronMousePancreas'],
             # singlecellnet singleR itclust, ck f1
+            #
+            #
+            #
+            #
             #
             'clustering': ['baron', 'segerstolpe'],  # seurat sc3 cidr, bcubed_f1 ARI v-measure
             'rare_cell_detection': ['baron', 'segerstolpe'],  # f1_rare, bcubed_f1_rare
-            'batch_correction': ['AztekinTail', 'segerstolpe+baron'],
+            'batch_correction': ['baron+segerstolpe', 'AztekinTail'],  #
             # differential expression analysis?
 
             'computation_time': ['PBMC50000',  # large-scale datasets, only use 50000 samples
@@ -62,7 +64,7 @@ class ExperimentConfig:
         self.n_filter_cell = 10
         self.n_filter_gene = 10
         self.n_genes = [500, 1000, 1500, 2000]  #
-        self.max_timeout = 60 * 30  # 60 seconds per minute * 30 minutes
+        self.max_timeout = 60 * 60 * 3  # 60 seconds per minute * 300 minutes
         self.ensemble_mode = 'importance_sum'
         # batch-effect removal: scGen
         self.epochs = 500
@@ -114,14 +116,15 @@ class DataConfig:
         self.data_path = "/volume/scRNA/python_data/"
 
         # PBMC
-        self.PBMC3K_path = "/home/tdeng/SingleCell/data/PBMC/pbmc3k_raw.h5ad"
         self.PBMC_markers_path = "/home/tdeng/SingleCell/data/PBMC/"
 
         # pancreas
         self.pancreas_markers_path = "/home/tdeng/SingleCell/data/pancreas/"
 
+        # mouse brain
+        self.mouse_brain_markers_path = "/home/tdeng/SingleCell/data/MouseBrain"
+
         # sim data
-        self.sim_path = "/home/tdeng/SingleCell/data/sim/sim_raw.h5"
         self.sim_markers_path = "/home/tdeng/SingleCell/data/sim/"
 
         # remove_types

@@ -15,3 +15,5 @@ for (j in 1:length(assign_methods)){
 
   write.csv(assign_result, stringr::str_glue("tempData/temp_{assign_methods[j]}.csv"), row.names = FALSE)
 }
+
+SelectIntegrationFeatures()

@@ -33,7 +33,7 @@ def scANVI_predict(train_data: ad.AnnData, test_data: ad.AnnData) -> np.ndarray:
         scvi.data.setup_anndata(concat_data, batch_key=None, labels_key='celltype')
 
         scvi_model = scvi.model.SCANVI(concat_data, unlabeled_category='unknown')
-        scvi_model.train(max_epochs=100, early_stopping=True, early_stopping_patience=10)
+        scvi_model.train(max_epochs=50, early_stopping=True, early_stopping_patience=5)
         y_pred = scvi_model.predict()
     return y_pred[is_test]
 

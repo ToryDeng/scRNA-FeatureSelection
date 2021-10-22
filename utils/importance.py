@@ -3,7 +3,7 @@ from collections import defaultdict
 import anndata as ad
 import pandas as pd
 import timeout_decorator
-import warnings
+from collections import Counter
 from utils.utils import get_gene_names, save_data, delete, normalize_importances
 from utils.record import TimeRecorder
 from config import AssignConfig, ClusterConfig, exp_cfg, assign_cfg
@@ -36,8 +36,8 @@ def most_important_genes(importances: Optional[np.ndarray],
     """
     Select max feature_num important genes according to importance array.
 
-    :param n_gene_reduce: number
-    :param fraction:
+    :param n_gene_reduce: number of genes which are need to be reduced
+    :param fraction: conservation fraction
     :param importances: importance of each gene
     :param all_features: names of all genes
     :return: list of the most important genes and importance of which number equals to
@@ -53,7 +53,7 @@ def most_important_genes(importances: Optional[np.ndarray],
         importances, all_features = importances[~na_mask].astype(np.float), all_features[~na_mask]
         all_idx = np.argsort(importances)[::-1]
         if n_gene_reduce is None and fraction is None:
-            fea_impo_list = []
+            fea_impo_list = []  # [(feature, importance), (feature, importance), (feature, importance), ()]
             for n_gene in exp_cfg.n_genes:
                 if importances.shape[0] >= n_gene:
                     fea_impo_list.append((all_features[all_idx[:n_gene]], importances[all_idx[:n_gene]]))
@@ -93,7 +93,7 @@ def execute_Rscript(data_name: str,
     return gene_path
 
 
-@timeout_decorator.timeout(seconds=exp_cfg.max_timeout)
+@timeout_decorator.timeout(seconds=exp_cfg.max_timeout, use_signals=False)
 def cal_feature_importance(method: str,
                            adata: ad.AnnData,
                            recorder: Optional[TimeRecorder],
@@ -101,14 +101,15 @@ def cal_feature_importance(method: str,
                            use_rep: str = 'celltype',
                            ):
     """
-    Calculate importance of each feature using specified method.
-    If running time is over the given seconds, this function will raise TimeoutError.
+        Calculate importance of each feature using specified method.
+        If running time is over the given seconds, this function will raise TimeoutError.
 
-    :param method: feature selection method
-    :param adata: the anndata instance containing raw and norm data
-    :param recorder: performance recorder
-    :param config: assign configuration or cluster configuration
-    :return: importances and feature names, respectively.
+        :param method: feature selection method
+        :param adata: the anndata instance containing raw and norm data
+        :param recorder: performance recorder
+        :param config: assign configuration or cluster configuration
+        :param use_rep:  string that represents cell type
+        :return: unsorted importances and feature names, respectively.
     """
     assert config is not None, "config must exist."
     if config.method_lan[method] == 'python':  # python
@@ -124,7 +125,7 @@ def cal_feature_importance(method: str,
             forest = RandomForestClassifier(n_jobs=-1, random_state=0, verbose=0).fit(X, y)
             importance = forest.feature_importances_
         elif method == 'lgb':
-            lgb = LGBMClassifier(n_jobs=-1, random_state=0).fit(X, y)
+            lgb = LGBMClassifier(n_jobs=16, random_state=0).fit(X, y)
             importance = lgb.feature_importances_
         elif method == 'xgb':
             le = LabelEncoder()
@@ -160,7 +161,8 @@ def cal_feature_importance(method: str,
     else:  # R
         # save data first
         if config.method_on[method] == 'raw':
-            save_data(adata.raw.to_adata(), task='assign' if isinstance(config, AssignConfig) else 'cluster', use_rep=use_rep)
+            save_data(adata.raw.to_adata(), task='assign' if isinstance(config, AssignConfig) else 'cluster',
+                      use_rep=use_rep)
         else:
             save_data(adata, task='assign' if isinstance(config, AssignConfig) else 'cluster', use_rep=use_rep)
 
@@ -185,20 +187,20 @@ def cal_feature_importance(method: str,
     return importance, all_features
 
 
-def select_genes(method: str,
-                 adata: ad.AnnData,
-                 recorder: Optional[TimeRecorder] = None,
-                 config: Union[AssignConfig, ClusterConfig] = assign_cfg,
-                 n_gene_reduce=None,
-                 fraction=None,
-                 use_rep: str = 'celltype'
-                 ):
+def _select_genes(method: str,
+                  adata: ad.AnnData,
+                  recorder: Optional[TimeRecorder] = None,
+                  config: Union[AssignConfig, ClusterConfig] = assign_cfg,
+                  n_gene_reduce=None,
+                  fraction=None,
+                  use_rep: str = 'celltype'
+                  ):
     """
         Run ensemble selection method or single selection method according to the method name.
 
-        :param n_gene_reduce:
-        :param fraction:
-        :param use_rep:
+        :param n_gene_reduce: number of genes which are need to be reduced
+        :param fraction: conservation fraction
+        :param use_rep: string that represents cell type
         :param method: feature selection method
         :param adata: the anndata instance containing raw and norm data
         :param recorder: performance recorder
@@ -241,11 +243,64 @@ def select_genes(method: str,
                 fraction=fraction)
     except timeout_decorator.timeout_decorator.TimeoutError:
         final_result = None
-        warnings.warn(f"{method} is running out of time.")
+        print(f"{method} is running out of time.")
     except FileNotFoundError:
         final_result = None
-        warnings.warn(f"The R method {method} failed on dataset {adata.uns['data_name']}.")
-    except MemoryError as e:
+        print(f"The R method {method} failed on dataset {adata.uns['data_name']}.")
+    except MemoryError:
         final_result = None
-        print(e)
+        print(f"{method} is running out of memory.")
     return final_result
+
+
+def select_genes(method: str,
+                 adata: ad.AnnData,
+                 recorder: Optional[TimeRecorder] = None,
+                 config: Union[AssignConfig, ClusterConfig] = assign_cfg,
+                 n_gene_reduce=None,
+                 fraction=None,
+                 use_rep: str = 'celltype'
+                 ):
+    """
+        Run ensemble selection method or single selection method according to the method name.
+
+        :param n_gene_reduce: number of genes which are need to be reduced
+        :param fraction: conservation fraction
+        :param use_rep: string that represents cell type
+        :param method: feature selection method
+        :param adata: the anndata instance containing raw and norm data
+        :param recorder: performance recorder
+        :param config: assign configuration or cluster configuration
+        :return: importances and feature names, respectively.
+    """
+    if 'batch' in adata.obs:
+        ubatches = adata.obs['batch'].unique()
+        batch_features = []
+        for ubatch in ubatches:
+            batch_adata = adata[adata.obs['batch'] == ubatch].copy()
+            selected = _select_genes(method, batch_adata, recorder, config, n_gene_reduce, fraction, use_rep)
+            if selected is None:
+                raise RuntimeWarning(f"batch {ubatch} is not used.")
+            else:
+                batch_features.append(pd.Series(data=selected[-1][1], index=selected[-1][0]))
+        batch_features_rank = [batch_feature.rank() for batch_feature in batch_features]
+        cnt = Counter()
+        for batch_feature in batch_features:
+            cnt.update(batch_feature.index)
+        ties = pd.Series(cnt).sort_values(ascending=False)
+        untied_rank = []
+        for tie in np.unique(ties.values):
+            rank_dict = defaultdict(list)
+            for gene in ties[ties == tie].index:
+                for batch_rank in batch_features_rank:
+                    if gene in batch_rank.index:
+                        rank_dict[gene].append(batch_rank[gene])
+            median_rank_dict = {key: np.median(value) for key, value in rank_dict.items()}
+            untied = pd.Series(median_rank_dict).sort_values(ascending=True)
+            untied_rank.append(untied)
+        untied_features = pd.concat(untied_rank[::-1])
+        return most_important_genes(untied_features.values, untied_features.index.to_numpy(), n_gene_reduce, fraction)
+    else:
+        return _select_genes(method, adata, recorder, config, n_gene_reduce, fraction, use_rep)
+
+

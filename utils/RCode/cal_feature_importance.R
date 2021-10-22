@@ -87,9 +87,9 @@ if("temp_X.feather" %in% list.files() & "temp_y.feather" %in% list.files("tempDa
   stop("ERROR: There are no generating files.")
 }
 
-method <- "deviance"
-data_name <- "baron"
-n_genes <- 500
+#method <- "deviance"
+#data_name <- "baron"
+#n_genes <- 500
 
 highly_variable_gene.generate_HVGs(method, sce, data_name, n_genes)
 

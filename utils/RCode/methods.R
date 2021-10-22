@@ -78,10 +78,6 @@ assign.singlecellnet <- function(train_data, test_data){
   stopifnot(is(train_data,"SingleCellExperiment"))
   stopifnot(is(test_data,"SingleCellExperiment"))
   #' extract sampTab and expDat sce object into regular S3 objects
-  #' @param sce_object
-  #' @param exp_type
-  #' @param list
-  #' @export
   extractSCE <- function(sce_object, exp_type = "counts"){
     #extract metadata
     sampTab = as.data.frame(colData(sce_object, internal = TRUE))

@@ -33,7 +33,9 @@ def evaluate_assign_result(recorder: ClassificationRecorder = None,
     time_record = dict()
     # load test labels
     try:
-        label_test = np.squeeze(pd.read_feather("tempData/temp_y_test.feather").set_index('index', drop=True).values)
+        label_test = np.char.replace(np.squeeze(
+            pd.read_feather("tempData/temp_y_test.feather").set_index('index', drop=True).values
+        ).astype(np.str), '-', '.')
         # label_test = np.loadtxt('tempData/temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object_)[:, 1]
     except IndexError:  # if label_test is an empty array
         print(f"After selecting {n_gene} genes: y_test is empty.")
@@ -43,15 +45,15 @@ def evaluate_assign_result(recorder: ClassificationRecorder = None,
         start_time = datetime.now()
         # generate pred labels
         if assign_method == 'scanvi':
-            try:
-                label_pred = scANVI_predict(train_data=adata_train.copy(), test_data=adata_test.copy())
-            except (IndexError, ValueError, AttributeError) as e:
-                print(f"After selecting {n_gene} genes: {e}")
-                label_pred = np.empty(shape=(0,))
+            # try:
+            #     label_pred = scANVI_predict(train_data=adata_train.copy(), test_data=adata_test.copy())
+            # except (IndexError, ValueError, AttributeError) as e:
+            #     print(f"After selecting {n_gene} genes: {e}")
+            label_pred = np.empty(shape=(0,))
         else:
             try:
-                label_pred = np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']),
-                                        delimiter=',', skiprows=1, dtype=np.str_)
+                label_pred = np.char.strip(np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']),
+                                                      delimiter=',', skiprows=1, dtype=np.str), '"')
             except OSError:
                 print(f"temp_{assign_method}.csv not found.")
                 label_pred = np.empty(shape=(0,))
@@ -64,7 +66,7 @@ def evaluate_assign_result(recorder: ClassificationRecorder = None,
             if label_test.shape[0] != 0:
                 if label_test.shape[0] != label_pred.shape[0]:
                     raise ValueError(f"label_test is {label_test.shape[0]}, and label_pred is {label_pred.shape[0]}")
-                report = classification_report(label_test, np.char.strip(label_pred, '"'), output_dict=True, zero_division=0)
+                report = classification_report(label_test, label_pred, output_dict=True, zero_division=0)
                 f1_all = report['macro avg']['f1-score']  # scANVI is bad in rare cell detection
                 ck_score = cohen_kappa_score(label_test, np.char.strip(label_pred, '"'))
                 if hasattr(recorder, 'rare_type'):
@@ -77,14 +79,18 @@ def evaluate_assign_result(recorder: ClassificationRecorder = None,
                 else:
                     f1_rare = 0
             else:  # test labels do not exist
+                print('label_test does not exist!')
                 f1_all, ck_score, f1_rare = 0, 0, 0
         assign_result[assign_method + '_f1'] = f1_all
         assign_result[assign_method + '_ck'] = ck_score
         if hasattr(recorder, 'rare_type'):
             assign_result[assign_method + '_f1_rare'] = f1_rare
         time_record[assign_method] = np.round((datetime.now() - start_time).total_seconds(), decimals=2)
+
     if n_gene == exp_cfg.n_genes[-1]:
         print(f"{n_gene}: Evaluation of gene selection results costs: {time_record}")
+        print(f"{n_gene}: Evaluation results: {assign_result}")
+
     return assign_result
 
 
@@ -123,9 +129,10 @@ def evaluate_correction_result(combined_adata: ad.AnnData, fs_method: str = None
     combined_adata = combined_adata[np.argsort(combined_adata.obs['batch']), :]
     correction_result = dict()
     with HiddenPrints():
-        for correct_method in ['scgen', 'harmony', 'scanorama']:
-            if correct_method == 'scgen':  # TODO: scGen needs raw data?
-                train = scgen.setup_anndata(combined_adata.raw.to_adata(), batch_key="batch", labels_key="celltype", copy=True)
+        for correct_method in ['harmony', 'scanorama']:  # 'scgen',
+            if correct_method == 'scgen':
+                train = scgen.setup_anndata(combined_adata.raw.to_adata(), batch_key="batch", labels_key="celltype",
+                                            copy=True)
                 model = scgen.SCGEN(train)
                 model.train(max_epochs=exp_cfg.epochs, batch_size=exp_cfg.batch_size,
                             early_stopping=exp_cfg.use_early_stopping,
@@ -133,10 +140,10 @@ def evaluate_correction_result(combined_adata: ad.AnnData, fs_method: str = None
                 corrected = model.batch_removal()
             elif correct_method == 'harmony':
                 sc.external.pp.harmony_integrate(combined_adata, key='batch', random_state=exp_cfg.random_seed,
-                                                 verbose=0, nclust=50)
-                corrected = combined_adata.copy()
+                                                 verbose=0, nclust=50)  # basis: X_pca, so gene expression after batch
+                corrected = combined_adata.copy()  # correction is similar, and thus iLISI values are similar
             elif correct_method == 'scanorama':
-                sc.external.pp.scanorama_integrate(combined_adata, key='batch', verbose=0)
+                sc.external.pp.scanorama_integrate(combined_adata, key='batch', verbose=0)  # basis: X_pca
                 corrected = combined_adata.copy()
             else:
                 raise NotImplementedError(f"{correct_method} have not been implemented yet.")
@@ -146,14 +153,15 @@ def evaluate_correction_result(combined_adata: ad.AnnData, fs_method: str = None
                     mode='after')
             save_data(corrected, task='correct')
             os.system('Rscript utils/RCode/correction.R >& /dev/null')  #
-            metrics = np.loadtxt('tempData/temp_correction.csv', skiprows=1, usecols=[1, 2], delimiter=',',
-                                 dtype=np.float_)
+            metrics = np.loadtxt('tempData/temp_correction.csv', skiprows=1, usecols=[1, 2], delimiter=',', dtype=np.float_)
             correction_result[correct_method + '_kBET'] = metrics[0]
             correction_result[correct_method + '_iLISI'] = metrics[1]
+            print(correction_result)
     return correction_result
 
 
 def evaluate_feature_selection_methods(measurements: List[str], methods: List[str]):
+    print(f"measurements: {measurements}")
     master_recorder = MasterRecorder(measurements, methods)
     try:
         for measurement, datasets in exp_cfg.measurements.items():
@@ -180,7 +188,7 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                             result_list = select_genes(method, adata, config=assign_cfg)
                             if result_list is not None:
                                 for n_gene, result in zip(exp_cfg.n_genes, result_list):
-                                    master_recorder.marker.record(dataset, n_gene, adata.uns['markers'], result)
+                                    master_recorder.marker.record(dataset, n_gene, adata.uns['markers'], adata.uns['marker_weight'], result)
                     master_recorder.marker.save()
                 elif measurement == 'computation_time':
                     for dataset in datasets:
@@ -213,7 +221,7 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                                     correction_result = evaluate_correction_result(selected_comb, fs_method=method,
                                                                                    data_name=comb_dataset)
                                     master_recorder.correct.record(comb_dataset, n_gene, correction_result)
-                    master_recorder.correct.save()
+                            master_recorder.correct.save()
                 elif measurement == 'classification':
                     for dataset in datasets:
                         adata = load_data(dataset)
@@ -221,13 +229,11 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                         skf = StratifiedKFold(n_splits=assign_cfg.n_folds, random_state=assign_cfg.random_seed,
                                               shuffle=True)
                         for i, (train_idx, test_idx) in enumerate(skf.split(adata.X, adata.obs['celltype'].values)):
-                            # clean directory
-                            delete('tempData/')
+
                             # split train and test data
                             adata_train, adata_test = adata[train_idx], adata[test_idx]
                             # remove const genes and cells before feature selection
-                            gene_mask = sc.pp.filter_genes(adata_train, min_cells=exp_cfg.n_filter_cell, inplace=False)[
-                                0]
+                            gene_mask = sc.pp.filter_genes(adata_train, min_cells=exp_cfg.n_filter_cell, inplace=False)[0]
                             adata_train, adata_test = adata_train[:, gene_mask], adata_test[:, gene_mask]
                             adata_train.raw = adata_train.raw[:, gene_mask].to_adata()
                             adata_test.raw = adata_test.raw[:, gene_mask].to_adata()
@@ -241,14 +247,17 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                                 if all_result_list is not None:
                                     master_recorder.assign.store_selected_genes(dataset, all_result_list)
                                     for n_gene, result in zip(exp_cfg.n_genes, all_result_list):
+                                        # clean directory
+                                        delete('tempData/')
                                         gene_mask = master_recorder.assign.get_mask(adata_train.var_names.values,
                                                                                     result,
                                                                                     n_gene)
-                                        # filter out non-markers and save raw data
+                                        # filter out non-HVGs and save raw data
                                         selected_train = filter_adata(adata_train.raw[:, gene_mask].to_adata(),
                                                                       filter_cell=True)  # raw
                                         selected_test = filter_adata(adata_test.raw[:, gene_mask].to_adata(),
-                                                                     filter_cell=True)   # raw
+                                                                     filter_cell=True)  # raw
+                                        print(selected_test.shape)
                                         save_data(selected_train, selected_test)
                                         # metric of downstream analysis
                                         assign_result = evaluate_assign_result(master_recorder.assign, n_gene,
