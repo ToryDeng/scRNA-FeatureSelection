@@ -45,42 +45,13 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 >6. Dumitrascu B, Villar S, Mixon D G, et al. Optimal marker gene selection for cell type discrimination in single cell analyses[J]. Nature communications, 2021, 12(1): 1-8.  
 >7. Zheng G X Y, Terry J M, Belgrader P, et al. Massively parallel digital transcriptional profiling of single cells[J]. Nature communications, 2017, 8(1): 1-12.
 >8. Li J, Cheng K, Wang S, et al. Feature selection: A data perspective[J]. ACM Computing Surveys (CSUR), 2017, 50(6): 1-45.
->9. Su K, Yu T, Wu H. Accurate feature selection improves single-cell RNA-seq cell clustering[J]. Briefings in Bioinformatics, 2021. 
-
-## Datasets
-- **PBMC**  
-  A certain proportion of samples are extracted from the data because it is large. 
-  Different sample rates(5%, 10%, 20% and 50%) are used to ensure robustness of the evaluation.
-- **pancreas**  
-  Three datasets which contain some cells with unclear cell types (unclear, not applicable, unclassified,
-  co-expression) or contamination(alpha.contaminated, delta.contaminated, gamma.contaminated, beta.contaminated).
-
-## Marker Genes
-| Dataset | Marker Genes in Data |
-| :-----: | :-----------: |
-|PBMC3k     |   413   |
-| baron     |   469   |
-|segerstolpe|   476   |
+>9. Su K, Yu T, Wu H. Accurate feature selection improves single-cell RNA-seq cell clustering[J]. Briefings in Bioinformatics, 2021.
 
 
 ## Normalization
 The normalization method in **Seurat**.
 
-## Metrics
-- **Number of Marker Genes Found**  
-  The number of marker genes which are found in data.
-- **Mean Reciprocal Rank (MRR)**  
-  ![1](https://latex.codecogs.com/gif.latex?MRR=\frac{1}{\vert&space;Q&space;\vert}\sum_{i=1}^{\vert&space;Q&space;\vert}\frac{1}{rank_{i}})
-- **Adjusted Rand Index (ARI)**  
-  ARI of 2 clustering methods: Seurat and SC3.
-- **F1-score**  
-  F1-score of 3 classification methods: scmap-cluster, scmap-cell and singleR (using 5-fold CV).
-- **Consistency**
-  
-  For classification task, evaluate consistency by calculating the variance of F1-scores 
-  generated from 5-fold CV. For clustering task, evaluate consistency by calculating the 
-  absolute mean value of the difference of average ARI between two splits.
-- **Computation Time**
+
 ## Examples
 ### Evaluation of Single Gene Selection Method
 ```python
@@ -100,7 +71,6 @@ All the records will be stored in the directory ***records/***.
 
 ## Notes
 
-1. By specifying data type in **config.py**, you can choose which type of data the methods will use.
-2. Parameter ***'methods'*** must be a list.
+By specifying data type in **config.py**, you can choose which type of data the methods will use.
 
 

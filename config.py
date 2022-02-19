@@ -6,18 +6,22 @@ class ExperimentConfig:
         # unsupervised methods
         self.method_on = {
             'var': 'raw',
-            'cv2': 'raw',
-            'seurat': 'raw',
-            'feast': 'norm',
-            'deviance': 'raw',
-            'm3drop': 'raw',
-            'scmap': 'raw',
+            'cv2': 'norm',
+            'random': 'raw',
+            'seurat': 'norm',
+            'seurat_v3': 'raw',
+            'feast': 'raw',  # normalize in R
+            'deviance': 'raw',  # normalize in R
+            'm3drop': 'raw',  # normalize in R
+            'scmap': 'raw',  # normalize in R
             'cellranger': 'raw'
         }
         self.method_lan = {
             'var': 'python',
             'cv2': 'python',
+            'random': 'python',
             'seurat': 'python',
+            'seurat_v3': 'python',
             'feast': 'r',
             'deviance': 'r',
             'm3drop': 'r',
@@ -26,35 +30,34 @@ class ExperimentConfig:
         }
         # measurements
         self.measurements = {
-            'population_demixing': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
-                                    'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain', 'BaronMousePancreas',
-                                    'LaMannoMouseAdult', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
-                                    'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel', 'PBMCsmall'],  # 13 datasets
-            #
+            'population_demixing': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain', 'PBMCsmall',
+                                    'DarmanisBrain', 'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain',
+                                    'BaronMousePancreas', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
+                                    'QuakeMouseSpleen', 'QuakeMouseTongue', 'Alles', 'Ariss', 'ToschesLizard'],  #
 
-            'marker_discovery': ['baron', 'simulatingPBMCsmall'],  # 4 datasets  , 'segerstolpe', 'PBMCsmall'
-            'selection_stability': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
-                                    'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain', 'BaronMousePancreas',
-                                    'LaMannoMouseAdult', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
-                                    'DengMouseEmbryoDevel', 'GoolamMouseEmbryoDevel', 'PBMCsmall'],  #
+            'marker_discovery': ['baron', 'segerstolpe', 'PBMCsmall', 'simulatingPBMCsmall', 'ZeiselMouseBrain'],
 
-            'classification': ['BaronMousePancreas'],
-            # singlecellnet singleR itclust, ck f1
-            #
-            #
-            #
-            #
-            #
-            'clustering': ['baron', 'segerstolpe'],  # seurat sc3 cidr, bcubed_f1 ARI v-measure
-            'rare_cell_detection': ['baron', 'segerstolpe'],  # f1_rare, bcubed_f1_rare
-            'batch_correction': ['baron+segerstolpe', 'AztekinTail'],  #
-            # differential expression analysis?
+            'intra-classification': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
+                                     'PBMCsmall', 'DarmanisBrain', 'GuoHumanTestis', 'QuakeMouseHeart',
+                                     'ZeiselMouseBrain', 'BaronMousePancreas', 'LaMannoHumanEmbryonicStem',
+                                     'LaMannoHumanEmbryonicMidbrain', 'QuakeMouseSpleen', 'QuakeMouseTongue',
+                                     'Alles', 'Ariss', 'ToschesLizard'],
+            'inter-classification': ['PBMCbatchone+PBMCsmall', 'PBMCbatchtwo+PBMCsmall'],
 
-            'computation_time': ['PBMC50000',  # large-scale datasets, only use 50000 samples
-                                 'VentoHumanPlacenta200', 'VentoHumanPlacenta500', 'VentoHumanPlacenta1000',
-                                 'VentoHumanPlacenta2000', 'VentoHumanPlacenta5000', 'VentoHumanPlacenta10000',
-                                 'VentoHumanPlacenta20000', 'VentoHumanPlacenta50000']
+            'clustering': ['PBMCbatchone', 'PBMCbatchtwo'],
+            # seurat sc3s, bcubed_f1 ARI v-measure
+            'batch_correction': ['AztekinTail', 'MouseAtlas', 'MouseHematopoieticStemProgenitor', 'MouseRetina',
+                                 'PBMCbatches', 'baron+segerstolpe'],  #
 
+            'computation_time': ['VentoHumanPlacenta500cells', 'VentoHumanPlacenta1000cells',
+                                 'VentoHumanPlacenta2000cells', 'VentoHumanPlacenta5000cells',
+                                 'VentoHumanPlacenta10000cells', 'VentoHumanPlacenta20000cells',
+                                 'VentoHumanPlacenta50000cells',
+                                 'GuoHumanTestis5000genes', 'GuoHumanTestis10000genes',
+                                 'GuoHumanTestis15000genes', 'GuoHumanTestis20000genes',
+                                 'GuoHumanTestis25000genes',
+                                 'PBMC50000cells']  # large-scale datasets, only use 50000 samples
+            # 'VentoHumanPlacenta5000cells'
         }
 
         self.random_seed = 2021
@@ -63,14 +66,12 @@ class ExperimentConfig:
         # filtering
         self.n_filter_cell = 10
         self.n_filter_gene = 10
-        self.n_genes = [500, 1000, 1500, 2000]  #
-        self.max_timeout = 60 * 60 * 3  # 60 seconds per minute * 300 minutes
+        self.n_genes = [500, 1000, 1500, 2000]  # 500, 1000, 1500, 2000
+        self.max_timeout = 60 * 60 * 24  # 60 seconds * 60 minutes * 24 hours
         self.ensemble_mode = 'importance_sum'
-        # batch-effect removal: scGen
-        self.epochs = 500
-        self.batch_size = 128
-        self.use_early_stopping = True
-        self.patience = 20
+        # batch-effect removal
+        self.plot = True
+        self.metric = True
         # saving directory
         self.record_path = 'records/'
         self.figure_path = 'figures/'
@@ -86,7 +87,7 @@ class AssignConfig(ExperimentConfig):
             'xgb': 'raw',
             'nsc': 'norm',
             'fisher_score': 'raw',
-            'scGeneFit': 'raw',
+            'scGeneFit': 'norm',
         })
         self.method_lan.update({
             'rf': 'python',
@@ -96,41 +97,31 @@ class AssignConfig(ExperimentConfig):
             'fisher_score': 'python',
             'scGeneFit': 'python',
         })
-        self.n_folds = 5  # 5 folds
+        self.n_folds = 5  # 5 folds, intra-dataset
+        self.evaluation_method = ['SingleR']
 
 
 class ClusterConfig(ExperimentConfig):
     def __init__(self):
         super().__init__()
-        self.n_folds = 2
-        self.n_loops = 10  # 10 loops
+        self.n_loops = 20  # 1 loops
         self.rare_type_detection_metric = 'bcubed'  # f-measure
+        self.evaluation_method = ['sc3s']
 
 
 class DataConfig:
     def __init__(self):
-        # how many datasets are in use
-        self.n_datasets = 4
-
         # data path
-        self.data_path = "/volume/scRNA/python_data/"
+        self.data_path = "/volume2/bioinfo/scRNA/python_data/"
 
-        # PBMC
-        self.PBMC_markers_path = "/home/tdeng/SingleCell/data/PBMC/"
+        # marker path
+        self.marker_path = "/volume1/home/tdeng/SingleCell/Data/MarkerGene/"
 
-        # pancreas
-        self.pancreas_markers_path = "/home/tdeng/SingleCell/data/pancreas/"
-
-        # mouse brain
-        self.mouse_brain_markers_path = "/home/tdeng/SingleCell/data/MouseBrain"
-
-        # sim data
-        self.sim_markers_path = "/home/tdeng/SingleCell/data/sim/"
-
-        # remove_types
-        self.remove_types = ['unclear', 'not applicable', 'unclassified', 'co-expression', 'beta.contaminated',
+        # remove_types in pancreas data
+        self.remove_types = ['unclear', 'not.applicable', 'unclassified', 'co.expression', 'beta.contaminated',
                              'alpha.contaminated', 'delta.contaminated', 'gamma.contaminated', 'unassigned',
-                             'MHC class II', 'unclassified endocrine', 'PSC', 'mast', np.NaN]
+                             'MHC.class.II', 'unclassified.endocrine', np.NaN, 'nan']
+        self.replace_types = {'stellate': ['activated_stellate', 'quiescent_stellate', 'PSC']}
 
 
 formal_method_names = {

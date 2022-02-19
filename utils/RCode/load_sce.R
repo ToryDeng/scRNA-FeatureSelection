@@ -22,18 +22,18 @@ load_sce2 <- function(type){
 
 load_sce <- function(type){
   require("SingleCellExperiment",character.only = TRUE)
-  require("arrow")
+  require(arrow)
   if (type == "all"){
-    count_matrix <- read_feather('tempData/temp_X.feather')
-    labels <- read_feather('tempData/temp_y.feather')
+    count_matrix <- arrow::read_feather('tempData/temp_X.feather')
+    labels <- arrow::read_feather('tempData/temp_y.feather')
   }
   else if (type == 'train'){
-    count_matrix <- read_feather('tempData/temp_X_train.feather')
-    labels <- read_feather('tempData/temp_y_train.feather')
+    count_matrix <- arrow::read_feather('tempData/temp_X_train.feather')
+    labels <- arrow::read_feather('tempData/temp_y_train.feather')
   }
   else if (type == 'test'){
-    count_matrix <- read_feather('tempData/temp_X_test.feather')
-    labels <- read_feather('tempData/temp_y_test.feather')
+    count_matrix <- arrow::read_feather('tempData/temp_X_test.feather')
+    labels <- arrow::read_feather('tempData/temp_y_test.feather')
   }
   
   count_matrix <- as.data.frame(count_matrix)
@@ -46,6 +46,12 @@ load_sce <- function(type){
   
   sce <- SingleCellExperiment(assays = list(counts = t(count_matrix)))
   colData(sce)$label <- make.names(labels)
+  
+  if ('temp_batch.feather' %in% list.files('tempData/')){
+    batches <- as.data.frame(arrow::read_feather('tempData/temp_batch.feather'))
+    rownames(batches) <- batches[,1]
+    colData(sce)$batch <- batches[,-1]
+  }
   metadata(sce) <- list(study=c('temp'))
   return(sce)
 }

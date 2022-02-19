@@ -1,184 +1,204 @@
 import os
 import traceback
 from datetime import datetime
-from typing import List
-
+from typing import List, Union
+import warnings
 import numpy as np
 import scanpy as sc
 import anndata as ad
-import pandas as pd
-import scgen
-import warnings
 from sklearn.metrics import adjusted_rand_score, classification_report, cohen_kappa_score, v_measure_score
 from sklearn.model_selection import StratifiedKFold
-
 from config import assign_cfg, cluster_cfg, exp_cfg
 from utils.importance import select_genes
-from utils.record import MasterRecorder, ClassificationRecorder, ClusteringRecorder
-from utils.classification import scANVI_predict
-from utils.utils import load_data, delete, save_data, filter_adata, plot_2D, HiddenPrints
+from utils.record import MasterRecorder, ClassificationRecorder, ClusteringRecorder, BatchCorrectionRecorder
+from utils.utils import load_data, delete, filter_adata, plot_2D, compute_correction_metrics, head, MyGroupSplit
+from otherSteps.clustering import seurat_v4_clustering, SC3s_clustering, SHARP_clustering, SC3_clustering2
+from otherSteps.classification import SingleR
+from otherSteps.correction import Seurat_v4_correct
 
 
-def evaluate_assign_result(recorder: ClassificationRecorder = None,
-                           n_gene: int = None,
-                           adata_train: ad.AnnData = None,
-                           adata_test: ad.AnnData = None) -> dict:
+def evaluate_assign_result(adata_train: ad.AnnData,
+                           adata_test: ad.AnnData,
+                           recorder: ClassificationRecorder = None,
+                           n_gene: Union[int, str] = None,
+                           ) -> dict:
     """
     Evaluate assign result using the F1-scores generating from three assign methods.
 
     :return: a dict containing F1-scores of three assign methods
     """
-    os.system('Rscript utils/RCode/classification.R >& /dev/null')  #
+    if n_gene == 'all':
+        print('Calculating baseline...')
+
     assign_result = dict()
     time_record = dict()
     # load test labels
-    try:
-        label_test = np.char.replace(np.squeeze(
-            pd.read_feather("tempData/temp_y_test.feather").set_index('index', drop=True).values
-        ).astype(np.str), '-', '.')
-        # label_test = np.loadtxt('tempData/temp_y_test.csv', delimiter=',', skiprows=1, dtype=np.object_)[:, 1]
-    except IndexError:  # if label_test is an empty array
-        print(f"After selecting {n_gene} genes: y_test is empty.")
-        label_test = np.empty(shape=(0,))
+    label_test = adata_test.obs['celltype'].to_numpy()
 
-    for assign_method in ['singlecellnet', 'singleR', 'scanvi']:
+    for assign_method in assign_cfg.evaluation_method:
         start_time = datetime.now()
         # generate pred labels
-        if assign_method == 'scanvi':
-            # try:
-            #     label_pred = scANVI_predict(train_data=adata_train.copy(), test_data=adata_test.copy())
-            # except (IndexError, ValueError, AttributeError) as e:
-            #     print(f"After selecting {n_gene} genes: {e}")
-            label_pred = np.empty(shape=(0,))
-        else:
-            try:
-                label_pred = np.char.strip(np.loadtxt(''.join(['tempData/', 'temp_', assign_method, '.csv']),
-                                                      delimiter=',', skiprows=1, dtype=np.str), '"')
-            except OSError:
-                print(f"temp_{assign_method}.csv not found.")
+        try:
+            if assign_method == 'SingleR':
+                label_pred = SingleR(adata_train=adata_train.raw.to_adata(), adata_test=adata_test.raw.to_adata())
+            else:
+                print(f"{assign_method} is not implemented.")
                 label_pred = np.empty(shape=(0,))
+        except:
+            print(f"{assign_method} failed after selecting {n_gene} genes.")
+            traceback.print_exc()
+            label_pred = np.empty(shape=(0,))
 
         # calculate F1 score
         if label_pred.shape[0] == 0:  # label_pred is an empty array
-            print(f"After selecting {n_gene} genes: {assign_method} failed. Set F1 (rare) score to 0.")
-            f1_all, ck_score, f1_rare = 0, 0, 0
+            f1_all, ck_score, f1_rare = np.nan, np.nan, np.nan
         else:  # label_pred is not empty
             if label_test.shape[0] != 0:
                 if label_test.shape[0] != label_pred.shape[0]:
                     raise ValueError(f"label_test is {label_test.shape[0]}, and label_pred is {label_pred.shape[0]}")
                 report = classification_report(label_test, label_pred, output_dict=True, zero_division=0)
-                f1_all = report['macro avg']['f1-score']  # scANVI is bad in rare cell detection
+                f1_all = report['macro avg']['f1-score']
                 ck_score = cohen_kappa_score(label_test, np.char.strip(label_pred, '"'))
-                if hasattr(recorder, 'rare_type'):
+                if recorder.rare_type is not None:
                     if recorder.rare_type not in report.keys():
                         print(f"After selecting {n_gene} genes: "
-                              f"{recorder.rare_type} is not in report. Set F1-rare to 0.")
-                        f1_rare = 0
+                              f"{recorder.rare_type} is not in report.")
+                        f1_rare = np.nan
                     else:
                         f1_rare = report[recorder.rare_type]['f1-score']
                 else:
-                    f1_rare = 0
+                    f1_rare = np.nan
             else:  # test labels do not exist
                 print('label_test does not exist!')
-                f1_all, ck_score, f1_rare = 0, 0, 0
+                f1_all, ck_score, f1_rare = np.nan, np.nan, np.nan
         assign_result[assign_method + '_f1'] = f1_all
         assign_result[assign_method + '_ck'] = ck_score
         if hasattr(recorder, 'rare_type'):
             assign_result[assign_method + '_f1_rare'] = f1_rare
         time_record[assign_method] = np.round((datetime.now() - start_time).total_seconds(), decimals=2)
 
+    if n_gene == 'all':
+        print(f"Baseline: {assign_result}")
     if n_gene == exp_cfg.n_genes[-1]:
-        print(f"{n_gene}: Evaluation of gene selection results costs: {time_record}")
-        print(f"{n_gene}: Evaluation results: {assign_result}")
+        print(f"{n_gene} genes: Evaluation of gene selection results costs: {time_record}")
+        print(f"{n_gene} genes: Evaluation results: {assign_result}")
 
     return assign_result
 
 
-def evaluate_cluster_result(recorder: ClusteringRecorder = None,
-                            n_gene: int = None
-                            ) -> dict:
+def evaluate_cluster_result(adata: ad.AnnData, recorder: ClusteringRecorder = None) -> dict:
     """
     Evaluate clustering result using the ARI generating from three clustering methods.
 
-    :return: a dict containing ARI of two clustering methods
+    :return: a dict containing ARI and v-measure of  clustering methods
     """
-    os.system('Rscript utils/RCode/clustering.R >& /dev/null')
     cluster_result = dict()
     time_record = dict()
-    label_true = np.squeeze(np.loadtxt('tempData/temp_y.csv', delimiter=',', skiprows=1, usecols=[1], dtype=np.str_))
-    for cluster_method in ['seurat', 'sc3', 'cidr']:
+    label_true = adata.obs['celltype'].to_numpy()
+    for cluster_method in cluster_cfg.evaluation_method:
         start_time = datetime.now()
-        label_pred_file_name = ''.join(['tempData/', 'temp_', cluster_method, '.csv'])
         try:
-            label_pred = np.squeeze(np.loadtxt(label_pred_file_name, delimiter=',', skiprows=1, dtype=np.str_))
-            cluster_result[cluster_method + '_ARI'] = adjusted_rand_score(label_true, label_pred)
-            cluster_result[cluster_method + '_BCubed'] = recorder.BCubed_fbeta_score(label_true, label_pred)
-            cluster_result[cluster_method + '_V'] = v_measure_score(label_true, label_pred)
-            if hasattr(recorder, 'rare_type'):
-                cluster_result[cluster_method + '_BCubed_rare'] = recorder.BCubed_fbeta_score_rare(label_true,
-                                                                                                   label_pred)
-        except OSError:
-            print(f"After selecting {n_gene} genes: {cluster_method} failed."
-                  f" Set ARI and F1 of the rare cell type to 0.")
+            if cluster_method == 'seurat':
+                label_pred = seurat_v4_clustering(adata.raw.to_adata())  # need raw data
+            elif cluster_method == 'sc3s':
+                label_pred = SC3s_clustering(adata)  # need norm data
+            elif cluster_method == 'sc3':
+                label_pred = SC3_clustering2(adata.raw.to_adata())
+            elif cluster_method == 'sharp':
+                label_pred = SHARP_clustering(adata.raw.to_adata())
+            else:
+                print(f"{cluster_method} is not implemented.")
+                label_pred = np.empty(shape=(0,))
+        except:
+            print(f"After selecting {adata.n_vars} genes: {cluster_method} failed.")
+            traceback.print_exc()
+            label_pred = np.empty(shape=(0,))
+        else:
+            print(f"{cluster_method} has been finished.")
+        if label_pred.shape[0] != 0:
+            if all(label_pred == label_pred):
+                cluster_result[cluster_method + '_ARI'] = adjusted_rand_score(label_true, label_pred)
+                # cluster_result[cluster_method + '_BCubed'] = recorder.BCubed_fbeta_score(label_true, label_pred)
+                cluster_result[cluster_method + '_V'] = v_measure_score(label_true, label_pred)
+                if hasattr(recorder, 'rare_type'):
+                    cluster_result[cluster_method + '_BCubed_rare'] = recorder.BCubed_fbeta_score_rare(label_true,
+                                                                                                       label_pred)
+            else:
+                print("Prediction result contains abnormal values (np.nan).")
         time_record[cluster_method] = np.round((datetime.now() - start_time).total_seconds(), decimals=2)
-    print(f"{n_gene}: Evaluation of gene selection results costs: {time_record}")
+
+    if adata.n_vars == exp_cfg.n_genes[-1]:
+        print(f"{adata.n_vars} genes: Evaluation of selection results costs: {time_record}")
+        print(f"{adata.n_vars} genes: Evaluation results: {cluster_result}\n")
     return cluster_result
 
 
-def evaluate_correction_result(combined_adata: ad.AnnData, fs_method: str = None, data_name: str = None):
-    combined_adata = combined_adata[np.argsort(combined_adata.obs['batch']), :]
-    correction_result = dict()
-    with HiddenPrints():
-        for correct_method in ['harmony', 'scanorama']:  # 'scgen',
-            if correct_method == 'scgen':
-                train = scgen.setup_anndata(combined_adata.raw.to_adata(), batch_key="batch", labels_key="celltype",
-                                            copy=True)
-                model = scgen.SCGEN(train)
-                model.train(max_epochs=exp_cfg.epochs, batch_size=exp_cfg.batch_size,
-                            early_stopping=exp_cfg.use_early_stopping,
-                            early_stopping_patience=exp_cfg.patience, use_gpu=False)
-                corrected = model.batch_removal()
-            elif correct_method == 'harmony':
-                sc.external.pp.harmony_integrate(combined_adata, key='batch', random_state=exp_cfg.random_seed,
-                                                 verbose=0, nclust=50)  # basis: X_pca, so gene expression after batch
-                corrected = combined_adata.copy()  # correction is similar, and thus iLISI values are similar
-            elif correct_method == 'scanorama':
-                sc.external.pp.scanorama_integrate(combined_adata, key='batch', verbose=0)  # basis: X_pca
-                corrected = combined_adata.copy()
-            else:
-                raise NotImplementedError(f"{correct_method} have not been implemented yet.")
-            plot_2D(corrected, dr_method='umap', fs_method=fs_method, bc_method=correct_method, data_name=data_name,
-                    mode='after')
-            plot_2D(corrected, dr_method='tsne', fs_method=fs_method, bc_method=correct_method, data_name=data_name,
-                    mode='after')
-            save_data(corrected, task='correct')
-            os.system('Rscript utils/RCode/correction.R >& /dev/null')  #
-            metrics = np.loadtxt('tempData/temp_correction.csv', skiprows=1, usecols=[1, 2], delimiter=',', dtype=np.float_)
-            correction_result[correct_method + '_kBET'] = metrics[0]
-            correction_result[correct_method + '_iLISI'] = metrics[1]
-            print(correction_result)
-    return correction_result
+def evaluate_batch_correction(combined_adata: ad.AnnData, fs_method: str, recorder: BatchCorrectionRecorder,
+                              pre_corrected: ad.AnnData):
+    warnings.filterwarnings('ignore')
+    # do batch correction first
+    # then select features
+    delete('tempData/')
+    print('selecting features...')
+    all_result_list_correction_first = select_genes(fs_method, pre_corrected, config=assign_cfg, select_by_batch=False)
+    # evaluate the results
+    correction_first_result = list()
+    for n_gene, result in zip(exp_cfg.n_genes, all_result_list_correction_first):
+        gene_mask = recorder.get_mask(pre_corrected.var_names.values, result, n_gene)
+        selected_correct = pre_corrected[:, gene_mask]
+        selected_correct.raw = pre_corrected.raw.to_adata()[:, gene_mask]
+        sc.pp.pca(selected_correct)
+        correction_first_result.append(compute_correction_metrics(selected_correct))
+        plot_2D(selected_correct, dr_method='umap', fs_method=fs_method, bc_method='seuratV4', mode='after',
+                order='correction_first')
+        plot_2D(selected_correct, dr_method='tsne', fs_method=fs_method, bc_method='seuratV4', mode='after',
+                order='correction_first')
+    del pre_corrected, selected_correct
+    # do feature selection first
+    delete('tempData/')
+    print('selecting features...')
+    all_result_list_selection_first = select_genes(fs_method, combined_adata, config=assign_cfg)
+    selection_first_result = list()
+    for n_gene, result in zip(exp_cfg.n_genes, all_result_list_selection_first):
+        gene_mask = recorder.get_mask(combined_adata.var_names.values, result, n_gene)
+        selected_comb = combined_adata[:, gene_mask]
+        selected_comb.raw = combined_adata.raw.to_adata()[:, gene_mask]
+        # then correct data
+        print('correcting data...')
+        corrected_adata = Seurat_v4_correct(selected_comb)
+        # evaluate the results
+        sc.pp.pca(corrected_adata)
+        selection_first_result.append(compute_correction_metrics(corrected_adata))
+        plot_2D(corrected_adata, dr_method='umap', fs_method=fs_method, bc_method='seuratV4', mode='after',
+                order='selection_first')
+        plot_2D(corrected_adata, dr_method='tsne', fs_method=fs_method, bc_method='seuratV4', mode='after',
+                order='selection_first')
+
+    return correction_first_result, selection_first_result  # [{}, {}],[{}, {}]
 
 
 def evaluate_feature_selection_methods(measurements: List[str], methods: List[str]):
-    print(f"measurements: {measurements}")
+    sc.settings.verbosity = 0
     master_recorder = MasterRecorder(measurements, methods)
+    print(f"Process pid: {os.getpid()}")
     try:
         for measurement, datasets in exp_cfg.measurements.items():
             if measurement in measurements:
+                print(f"Current measurement: {measurement}")
                 if measurement == 'population_demixing':
                     for dataset in datasets:
                         delete('tempData/')
                         adata = load_data(dataset)
+                        master_recorder.mixture.record(dataset, filtered_adata=adata)
                         for method in methods:
                             master_recorder.mixture.set_current_method(method)
                             result_list = select_genes(method, adata, config=assign_cfg)
                             if result_list is not None:
                                 for n_gene, result in zip(exp_cfg.n_genes, result_list):
                                     gene_mask = master_recorder.mixture.get_mask(adata.var_names.values, result, n_gene)
-                                    selected_adata = filter_adata(adata.raw[:, gene_mask].to_adata(), filter_cell=True)
-                                    master_recorder.mixture.record(dataset, n_gene, selected_adata)
-                    master_recorder.mixture.save()
+                                    selected_adata = adata.raw[:, gene_mask].to_adata()
+                                    master_recorder.mixture.record(dataset, selected_adata, n_gene)
+                        master_recorder.mixture.save()
                 elif measurement == 'marker_discovery':
                     for dataset in datasets:
                         delete('tempData/')
@@ -188,50 +208,66 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                             result_list = select_genes(method, adata, config=assign_cfg)
                             if result_list is not None:
                                 for n_gene, result in zip(exp_cfg.n_genes, result_list):
-                                    master_recorder.marker.record(dataset, n_gene, adata.uns['markers'], adata.uns['marker_weight'], result)
-                    master_recorder.marker.save()
+                                    master_recorder.marker.record(
+                                        dataset, adata.uns['markers'], adata.uns['marker_weight'], result, n_gene
+                                    )
+                        master_recorder.marker.save()
                 elif measurement == 'computation_time':
+                    delete(os.path.join(exp_cfg.record_path, 'pkl', 'TimeRecorder.pkl'))
                     for dataset in datasets:
                         delete('tempData/')
                         adata = load_data(dataset)
                         for method in methods:
                             master_recorder.time.set_current_method(method)
-                            select_genes(method, adata, recorder=master_recorder.time, config=assign_cfg)
-                    master_recorder.time.save()
+                            select_genes(method, adata, master_recorder.time, config=assign_cfg, use_saved=False)
                 elif measurement == 'batch_correction':
                     for comb_dataset in datasets:
                         comb_adata = load_data(comb_dataset)
+                        # before batch correction and feature selection
+                        sc.pp.pca(comb_adata)
+                        plot_2D(comb_adata, dr_method='umap')
+                        plot_2D(comb_adata, dr_method='tsne')
+                        del comb_adata.obsm['X_pca']
+
+                        # do batch correction first
+                        print('correcting data first...')
+                        if f"{comb_adata.uns['data_name']}.h5ad" not in os.listdir('correctedData/'):
+                            precorrected = Seurat_v4_correct(comb_adata)  # 'batch' in obs
+                            print('Saving pre-corrected data...')
+                            sc.write(f"correctedData/{precorrected.uns['data_name']}.h5ad", precorrected)
+                        else:
+                            print('Using previously saved data...')
+                            precorrected = sc.read_h5ad(f"correctedData/{comb_adata.uns['data_name']}.h5ad")
+
                         for method in methods:
                             master_recorder.correct.set_current_method(method)
-                            delete('tempData/')
-                            # select features
-                            all_result_list = select_genes(method, comb_adata, config=assign_cfg)
-                            if all_result_list is not None:
-                                for n_gene, result in zip(exp_cfg.n_genes, all_result_list):
-                                    gene_mask = master_recorder.correct.get_mask(comb_adata.var_names.values, result,
-                                                                                 n_gene)
-                                    selected_comb = filter_adata(comb_adata[:, gene_mask], filter_cell=True)
-                                    selected_comb.raw = comb_adata.raw.to_adata()[:, gene_mask]
-                                    # print(n_gene, selected_comb.shape, selected_comb.raw.shape)
-                                    if selected_comb.shape[0] < 1e3:
-                                        warnings.warn("This iteration will be skipped.")
-                                        continue
-                                    plot_2D(selected_comb, dr_method='umap', fs_method=method, data_name=comb_dataset)
-                                    plot_2D(selected_comb, dr_method='tsne', fs_method=method, data_name=comb_dataset)
-                                    correction_result = evaluate_correction_result(selected_comb, fs_method=method,
-                                                                                   data_name=comb_dataset)
-                                    master_recorder.correct.record(comb_dataset, n_gene, correction_result)
+                            correction_first, selection_first = evaluate_batch_correction(
+                                comb_adata, method, master_recorder.correct, pre_corrected=precorrected)
+                            for i, n_gene in enumerate(exp_cfg.n_genes):
+                                if i < len(correction_first):
+                                    master_recorder.correct.record(comb_dataset, n_gene, correction_first[i],
+                                                                   'correction_first')
+                                if i < len(selection_first):
+                                    master_recorder.correct.record(comb_dataset, n_gene, selection_first[i],
+                                                                   'selection_first')
                             master_recorder.correct.save()
-                elif measurement == 'classification':
+                elif measurement.endswith('classification'):
+                    assign_type = measurement.split('-')[0]
+                    if assign_type == 'intra':
+                        select_by_batch = True
+                        split_obj = StratifiedKFold(assign_cfg.n_folds, random_state=assign_cfg.random_seed, shuffle=True)
+                    else:  # inter
+                        select_by_batch = False
+                        split_obj = MyGroupSplit()
+
                     for dataset in datasets:
                         adata = load_data(dataset)
-                        master_recorder.assign.set_rare_type(adata)
-                        skf = StratifiedKFold(n_splits=assign_cfg.n_folds, random_state=assign_cfg.random_seed,
-                                              shuffle=True)
-                        for i, (train_idx, test_idx) in enumerate(skf.split(adata.X, adata.obs['celltype'].values)):
-
+                        getattr(master_recorder, assign_type).set_rare_type_and_tables(adata)
+                        for i, (train_idx, test_idx) in enumerate(split_obj.split(adata.X, adata.obs['celltype'].values, adata.obs['batch'].values)):
+                            i = master_recorder.inter.perms[i] if assign_type == 'inter' else i
                             # split train and test data
-                            adata_train, adata_test = adata[train_idx], adata[test_idx]
+                            adata_train, adata_test = adata[train_idx].copy(), adata[test_idx].copy()
+                            adata_train.uns['fold'], adata_test.uns['fold'] = i, i
                             # remove const genes and cells before feature selection
                             gene_mask = sc.pp.filter_genes(adata_train, min_cells=exp_cfg.n_filter_cell, inplace=False)[0]
                             adata_train, adata_test = adata_train[:, gene_mask], adata_test[:, gene_mask]
@@ -239,65 +275,57 @@ def evaluate_feature_selection_methods(measurements: List[str], methods: List[st
                             adata_test.raw = adata_test.raw[:, gene_mask].to_adata()
                             adata_train, adata_test = filter_adata(adata_train, filter_cell=True), \
                                                       filter_adata(adata_test, filter_cell=True)
+                            # baseline
+                            baseline_result = evaluate_assign_result(adata_train, adata_test, getattr(master_recorder, assign_type), 'all')
+                            getattr(master_recorder, assign_type).record(dataset, i, baseline_result)
+                            # do feature selection
                             for method in methods:
-                                master_recorder.assign.set_current_method(method, i + 1)
+                                getattr(master_recorder, assign_type).set_current_method(method, i)
                                 # select features
-                                all_result_list = select_genes(method, adata_train, config=assign_cfg)
+                                all_result_list = select_genes(method, adata_train, config=assign_cfg, select_by_batch=select_by_batch)
                                 # store selected genes, 4 n_gene * 5 folds
                                 if all_result_list is not None:
-                                    master_recorder.assign.store_selected_genes(dataset, all_result_list)
                                     for n_gene, result in zip(exp_cfg.n_genes, all_result_list):
                                         # clean directory
                                         delete('tempData/')
-                                        gene_mask = master_recorder.assign.get_mask(adata_train.var_names.values,
-                                                                                    result,
-                                                                                    n_gene)
+                                        gene_mask = getattr(master_recorder, assign_type).get_mask(
+                                            adata_train.var_names.values, result, n_gene)
                                         # filter out non-HVGs and save raw data
-                                        selected_train = filter_adata(adata_train.raw[:, gene_mask].to_adata(),
-                                                                      filter_cell=True)  # raw
-                                        selected_test = filter_adata(adata_test.raw[:, gene_mask].to_adata(),
-                                                                     filter_cell=True)  # raw
-                                        print(selected_test.shape)
-                                        save_data(selected_train, selected_test)
+                                        selected_train, selected_test = adata_train[:, gene_mask], adata_test[:,
+                                                                                                   gene_mask]
+                                        selected_train.raw = adata_train.raw[:, gene_mask].to_adata()  # norm and raw
+                                        selected_test.raw = adata_test.raw[:, gene_mask].to_adata()  # norm and raw
                                         # metric of downstream analysis
-                                        assign_result = evaluate_assign_result(master_recorder.assign, n_gene,
-                                                                               selected_train, selected_test)
-                                        master_recorder.assign.record(dataset, n_gene, i, assign_result)
-                        master_recorder.assign.cal_mean_rbo(dataset)
-                        master_recorder.assign.save()
+                                        assign_result = evaluate_assign_result(selected_train, selected_test,
+                                                                               getattr(master_recorder, assign_type), n_gene)
+                                        getattr(master_recorder, assign_type).record(dataset, i, assign_result, n_gene)
+                        getattr(master_recorder, assign_type).save()
                 elif measurement == 'clustering':
                     for dataset in datasets:
                         adata = load_data(dataset)
                         master_recorder.cluster.set_rare_type(adata)
-
+                        # run baseline first
                         for i in range(cluster_cfg.n_loops):
-                            skf = StratifiedKFold(n_splits=cluster_cfg.n_folds,
-                                                  random_state=cluster_cfg.random_seed + i,
-                                                  shuffle=True)
-                            left_index, right_index = list(skf.split(adata.X, adata.obs['celltype'].values))[0]
-
-                            # remove const genes before feature selection
-                            adata_left = filter_adata(adata[left_index], filter_gene=True, filter_cell=True)
-                            adata_right = filter_adata(adata[right_index], filter_gene=True, filter_cell=True)
-                            # clean directory
-                            delete('tempData/')
-                            for method in master_recorder.cluster.methods:
-                                master_recorder.cluster.set_current_method(method, i + 1)
-                                for j, data in enumerate([adata_left, adata_right]):
-                                    half_result_list = select_genes(method, data, config=cluster_cfg)
-                                    if half_result_list is not None:
-                                        for n_gene, half_result in zip(exp_cfg.n_genes, half_result_list):
-                                            half_mask = master_recorder.cluster.get_mask(
-                                                all_genes=data.var_names.values,
-                                                single_selected_result=half_result,
-                                                n_gene=n_gene)
-                                            half_selected = filter_adata(data.raw[:, half_mask].to_adata(),
-                                                                         filter_gene=True, filter_cell=True)
-                                            save_data(half_selected, task='cluster')
-                                            # downstream analysis: clustering
-                                            half_metric = evaluate_cluster_result(master_recorder.cluster, n_gene)
-                                            # double_metrics[j].append(half_metric)
-                                            master_recorder.cluster.record(dataset, n_gene, i, j, half_metric)
+                            print('Calculating baseline...', end=' ')
+                            baseline_result = evaluate_cluster_result(adata.copy(), master_recorder.cluster)
+                            master_recorder.cluster.record(dataset, baseline_result, i)
+                        # evaluate each method
+                        for method in master_recorder.cluster.methods:
+                            master_recorder.cluster.set_current_method(method)
+                            all_result_list = select_genes(method, adata, config=cluster_cfg)
+                            if all_result_list is not None:
+                                for i in range(cluster_cfg.n_loops):
+                                    head(name=method, fold=i + 1)
+                                    for n_gene, result in zip(exp_cfg.n_genes, all_result_list):
+                                        # clean directory
+                                        delete('tempData/')
+                                        gene_mask = master_recorder.cluster.get_mask(adata.var_names.values, result,
+                                                                                     n_gene)
+                                        selected_adata = adata[:, gene_mask]
+                                        selected_adata.raw = adata.raw[:, gene_mask].to_adata()  # norm and raw
+                                        # downstream analysis: clustering
+                                        cluster_result = evaluate_cluster_result(selected_adata, master_recorder.cluster)
+                                        master_recorder.cluster.record(dataset, cluster_result, i, n_gene)
                         master_recorder.cluster.save()
     except:
         master_recorder.save_all()

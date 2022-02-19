@@ -1,13 +1,13 @@
-source("/home/tdeng/SingleCell/scRNA-FeatureSelection/utils/RCode/methods.R")
-source("/home/tdeng/SingleCell/scRNA-FeatureSelection/utils/RCode/load_sce.R")
+source("/volume1/home/tdeng/SingleCell/scRNA-FeatureSelection/utils/RCode/methods.R")
+source("/volume1/home/tdeng/SingleCell/scRNA-FeatureSelection/utils/RCode/load_sce.R")
 require(SingleCellExperiment)
 require(Hmisc)
 
 
-setwd('/home/tdeng/SingleCell/scRNA-FeatureSelection/')
+setwd('/volume1/home/tdeng/SingleCell/scRNA-FeatureSelection/')
 
 sce_all <- load_sce("all")
-cluster_methods <- c('seurat','sc3', 'cidr')#  'tscan', , 'cidr', 'liger', 'scmap'
+cluster_methods <- c('seurat','sc3')
 
 for (i in 1:length(cluster_methods)){
   cluster_result <- run_cluster_methods(cluster_methods[i], sce_all)

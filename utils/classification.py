@@ -8,6 +8,7 @@ import anndata as ad
 import scvi
 
 
+# these two algorithms are not used
 def ItClust_predict(train_data: ad.AnnData, test_data: ad.AnnData) -> np.ndarray:
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -26,14 +27,14 @@ def ItClust_predict(train_data: ad.AnnData, test_data: ad.AnnData) -> np.ndarray
 
 
 def scANVI_predict(train_data: ad.AnnData, test_data: ad.AnnData) -> np.ndarray:
-    with HiddenPrints():  # setup_anndata() needs raw data
+    with HiddenPrints():
         test_data.obs['celltype'] = 'unknown'
-        concat_data = ad.concat([train_data, test_data], label='batch')
+        concat_data = ad.concat([train_data, test_data])
         is_test = concat_data.obs['celltype'] == 'unknown'
-        scvi.data.setup_anndata(concat_data, batch_key=None, labels_key='celltype')
+        scvi.model.SCANVI.setup_anndata(concat_data, batch_key=None, labels_key='celltype')
 
         scvi_model = scvi.model.SCANVI(concat_data, unlabeled_category='unknown')
-        scvi_model.train(max_epochs=50, early_stopping=True, early_stopping_patience=5)
+        scvi_model.train(max_epochs=200, early_stopping=True, batch_size=512)
         y_pred = scvi_model.predict()
     return y_pred[is_test]
 

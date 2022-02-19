@@ -10,9 +10,10 @@ highly_variable_gene.generate_HVGs <- function(method, data, data_name, n_genes)
 
 highly_variable_gene.feast <- function(data, data_name){
   source("utils/RCode/FEAST.R")
+  require(doParallel)
   k = dim(unique(colData(data)['label']))[1]
   t1 <- proc.time()
-  feast_result <- FEAST(data, k=k)
+  feast_result <- FEAST_fast(data, k=k, nProc=detectCores(logical = F) - 1)
   t2 <- proc.time()
   # save time and markers
   time_file_name <- paste(data_name, 'time', 'feast', sep = '_')
@@ -79,7 +80,7 @@ data_name <- args[1]
 method <- args[2]
 n_genes <- as.numeric(args[3])
 
-if("temp_X.feather" %in% list.files() & "temp_y.feather" %in% list.files("tempData")){
+if("temp_X.feather" %in% list.files("tempData") & "temp_y.feather" %in% list.files("tempData")){
   sce <- load_sce("all")
 } else if("temp_X_train.feather" %in% list.files("tempData") & "temp_y_train.feather" %in% list.files("tempData")){
   sce <- load_sce("train")
@@ -87,8 +88,8 @@ if("temp_X.feather" %in% list.files() & "temp_y.feather" %in% list.files("tempDa
   stop("ERROR: There are no generating files.")
 }
 
-#method <- "deviance"
-#data_name <- "baron"
+#method <- "feast"
+#data_name <- "baron+segerstolpe"
 #n_genes <- 500
 
 highly_variable_gene.generate_HVGs(method, sce, data_name, n_genes)

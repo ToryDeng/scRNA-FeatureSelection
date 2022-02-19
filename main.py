@@ -1,15 +1,15 @@
-from utils.evaluation import evaluate_feature_selection_methods
+import warnings
+warnings.filterwarnings('ignore')
 
+from utils.evaluation import evaluate_feature_selection_methods
 # evaluate_feature_selection_methods(measurements=['population_demixing', 'marker_discovery',
 #                                                  'classification', 'clustering',
 #                                                  'batch_correction', 'computation_time'],
-#                                    methods=['var', 'seurat', 'deviance', 'm3drop', 'scmap',
+#                                    methods=['var', 'cv2', 'seurat_v3', 'deviance', 'm3drop', 'scmap',
 #                                             'rf', 'lgb', 'xgb', 'nsc', 'fisher_score', 'scGeneFit',
-#                                             'cellranger', 'feast', 'rf+fisher_score', 'seurat+deviance'])
-evaluate_feature_selection_methods(measurements=['batch_correction'],
-                                   methods=['var', 'cv2', 'seurat', 'deviance', 'm3drop', 'scmap', 'rf',
-                                            'xgb', 'nsc', 'fisher_score', 'scGeneFit',
-                                            'cellranger', 'feast', 'rf+fisher_score', 'seurat+deviance']
-                                   )  #
-                                      # 'lgb',
-#
+#                                             'cellranger', 'feast', 'rf+fisher_score', 'feast+deviance'])
+
+evaluate_feature_selection_methods(measurements=['clustering'],
+                                   methods=['var', 'cv2', 'seurat_v3', 'deviance', 'm3drop', 'scmap',
+                                            'rf', 'lgb', 'xgb', 'nsc', 'fisher_score', 'scGeneFit',
+                                            'cellranger', 'feast', 'rf+fisher_score', 'feast+deviance'])
