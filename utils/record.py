@@ -27,7 +27,7 @@ class PerformanceRecorder:
             self.base_methods = method.split('+')
         head(name=method, fold=fold)
 
-    def get_mask(self, all_genes: np.ndarray, single_selected_result: tuple, n_gene: Union[float, int]) -> np.ndarray:
+    def get_mask(self, all_genes: np.ndarray, single_selected_result: pd.DataFrame, n_gene: Union[float, int]) -> np.ndarray:
         """
         Get the mask that indicates which genes are selected.
 
@@ -36,8 +36,7 @@ class PerformanceRecorder:
         :param n_gene: number of selected genes
         :return: a bool array
         """
-        selected_genes, all_genes = np.char.strip(single_selected_result[0].astype(np.str), "'"), np.char.strip(
-            all_genes.astype(np.str), "'")
+        selected_genes, all_genes = single_selected_result.iloc[:, 0].astype(np.str), all_genes.astype(np.str)
         missing_genes = self._check_selection_result(selected_genes, all_genes, n_gene)
         while missing_genes is not None:
             if np.char.startswith(missing_genes, 'X').sum() == missing_genes.shape[0]:  # gene names start with X
@@ -89,46 +88,6 @@ class PerformanceRecorder:
         pass
 
 
-class MixtureRecorder(PerformanceRecorder):
-    def __init__(self, datasets: List[str], methods: List[str]):
-        super(MixtureRecorder, self).__init__(datasets, methods)
-        self.silhouette_coef = pd.DataFrame(
-            data=np.full(shape=(len(exp_cfg.n_genes) * len(datasets), len(methods)), fill_value=np.nan),
-            index=pd.MultiIndex.from_product([datasets, exp_cfg.n_genes]), columns=methods
-        ).sort_index()
-        self.baseline = pd.DataFrame(
-            data=np.full(shape=(len(datasets), 1), fill_value=np.nan),
-            index=datasets, columns=['AllGenes']
-        ).sort_index()
-
-    def record(self, dataset: str, filtered_adata: ad.AnnData, n_gene: int = None):
-        try:
-            if n_gene is None:
-                self.baseline.loc[dataset, 'AllGenes'] = silhouette_score(
-                    X=sc.pp.pca(filtered_adata.X), labels=filtered_adata.obs['celltype'].values
-                )
-            else:
-                self.silhouette_coef.loc[(dataset, n_gene), self.current_method] = silhouette_score(
-                    X=sc.pp.pca(filtered_adata.X), labels=filtered_adata.obs['celltype'].values
-                )
-        except ValueError as e:
-            print(e)
-
-    def save(self):
-        """
-        Save this object to file_path.
-
-        :return: None
-        """
-        with open(os.path.join(exp_cfg.record_path, 'pkl', 'MarkerRecorder.pkl'), 'wb') as f:
-            pickle.dump(self, f)
-
-        self.silhouette_coef.to_excel(os.path.join(exp_cfg.record_path, 'xlsx', 'silhouette_coefficient.xlsx'))
-        # baseline results
-        self.baseline.to_excel(os.path.join(exp_cfg.record_path, 'xlsx', 'silhouette_coefficient_baseline.xlsx'))
-        print(f"{now()}: Finished and saved record to {exp_cfg.record_path}\n\n\n")  # UTC + 8 hours = Beijing time
-
-
 class MarkerRecorder(PerformanceRecorder):
     def __init__(self, datasets: List[str], methods: List[str]):
         super(MarkerRecorder, self).__init__(datasets, methods)
@@ -149,16 +108,25 @@ class MarkerRecorder(PerformanceRecorder):
     @staticmethod
     def cal_markers_found_and_MRR(total_markers: np.ndarray,
                                   total_marker_weight: np.ndarray,
-                                  single_selected_result: tuple):
+                                  single_selected_result: pd.DataFrame):
         """
         Calculate proportion of selected marker genes and MRR if importances exist, otherwise only calculate the proportion.
 
-        :param total_markers: all marker genes the dataset contains
-        :param single_selected_result: result from function 'select_features'
-        :return: proportion of marker genes found, and MRR
+        Parameters
+        ----------
+        total_markers
+            all marker genes the dataset contains
+        total_marker_weight
+            weights of all markers contained in this dataset
+        single_selected_result
+            result from function 'select_genes'
+
+        Returns
+        -------
+        proportion of marker genes found, and MRR
         """
-        selected_genes = single_selected_result[0]
-        rank = False if len(single_selected_result) == 1 else True
+        selected_genes = single_selected_result['Gene'].values
+        rank = False if single_selected_result.shape[1] == 1 else True
         markers_found_rate = total_marker_weight[
                                  np.isin(total_markers, selected_genes)].sum() / total_marker_weight.sum()
         if rank:
@@ -176,7 +144,7 @@ class MarkerRecorder(PerformanceRecorder):
     def record(self, dataset: str,
                all_markers: np.ndarray,
                all_marker_weight: np.ndarray,
-               single_selected_result: tuple,
+               single_selected_result: pd.DataFrame,
                n_gene: int = None
                ):
         if n_gene is None:
@@ -191,8 +159,6 @@ class MarkerRecorder(PerformanceRecorder):
     def save(self):
         """
         Save this object to file_path.
-
-        :return: None
         """
         with open(os.path.join(exp_cfg.record_path, 'pkl', 'MarkerRecorder.pkl'), 'wb') as f:
             pickle.dump(self, f)
@@ -207,35 +173,29 @@ class MarkerRecorder(PerformanceRecorder):
 
 
 class TimeRecorder(PerformanceRecorder):
-    def __init__(self, datasets: List[str], methods: List[str]):
+    def __init__(self, datasets: List[dict], methods: List[str]):
         super(TimeRecorder, self).__init__(datasets, methods)
+        dataset_names = [d['data_name'] + str(value) + key[-4:] for d in datasets for key, value in d.items() if
+                         key.starts_with('n_sampled')]
         self.computation_time = pd.DataFrame(
-            data=np.zeros((len(datasets), len(methods))), index=datasets, columns=methods
+            data=np.zeros((len(dataset_names), len(methods))), index=datasets, columns=methods
         )
 
-    def py_method_start(self):
-        self.start_time = datetime.datetime.now()
-
-    def py_method_end(self):
-        self.end_time = datetime.datetime.now()
-
-    @staticmethod
-    def R_method_time(data_name, method):
-        time_path = f'tempData/{data_name}_time_{method}.csv'
-        seconds = np.round(np.loadtxt(time_path, skiprows=1, usecols=[1], delimiter=',').tolist(), decimals=5)
-        return seconds
-
-    def record(self, dataset, method):
         if os.path.exists(os.path.join(exp_cfg.record_path, 'pkl', 'TimeRecorder.pkl')):
             with open(os.path.join(exp_cfg.record_path, 'pkl', 'TimeRecorder.pkl'), 'rb') as f:
                 self.computation_time = pickle.load(f).computation_time
 
-        if assign_cfg.method_lan[method] == 'python':
-            self.computation_time.loc[dataset, self.current_method] = (
-                    self.end_time - self.start_time).total_seconds()
-            self.start_time, self.end_time = None, None
-        else:
-            self.computation_time.loc[dataset, self.current_method] = self.R_method_time(dataset, method)
+    def selection_start(self):
+        self.start_time = datetime.datetime.now()
+
+    def selection_end(self, dataset: str, method: str):
+        self.end_time = datetime.datetime.now()
+        self.record(dataset, method)
+
+    def record(self, dataset: str, method: str):
+        self.computation_time.loc[dataset, method] = (self.end_time - self.start_time).total_seconds()
+        self.start_time, self.end_time = None, None  # reset time
+
         print(f"computation time: {self.computation_time.loc[dataset, self.current_method]} seconds.")
         self.save()
 
@@ -297,10 +257,14 @@ class ClassificationRecorder(PerformanceRecorder):
         self.assign_type = assign_type
         if self.assign_type == 'intra':
             self.classification_type = ''
-            self.overall_metrics = self._generate_table(datasets, exp_cfg.n_genes, assign_cfg.n_folds, self.assign_methods, self.assign_metrics, methods).sort_index()
-            self.rare_metric = self._generate_table(datasets, exp_cfg.n_genes, assign_cfg.n_folds, self.assign_methods, methods).sort_index()
-            self.overall_metrics_baseline = self._generate_table(datasets, assign_cfg.n_folds, self.assign_methods, self.assign_metrics, ['AllGenes']).sort_index()
-            self.rare_metric_baseline = self._generate_table(datasets, assign_cfg.n_folds, self.assign_methods, ['AllGenes']).sort_index()
+            self.overall_metrics = self._generate_table(datasets, exp_cfg.n_genes, assign_cfg.n_folds,
+                                                        self.assign_methods, self.assign_metrics, methods).sort_index()
+            self.rare_metric = self._generate_table(datasets, exp_cfg.n_genes, assign_cfg.n_folds, self.assign_methods,
+                                                    methods).sort_index()
+            self.overall_metrics_baseline = self._generate_table(datasets, assign_cfg.n_folds, self.assign_methods,
+                                                                 self.assign_metrics, ['AllGenes']).sort_index()
+            self.rare_metric_baseline = self._generate_table(datasets, assign_cfg.n_folds, self.assign_methods,
+                                                             ['AllGenes']).sort_index()
         else:  # inter
             self.overall_metrics, self.rare_metric = None, None
             self.overall_metrics_baseline, self.rare_metric_baseline = None, None
@@ -313,14 +277,20 @@ class ClassificationRecorder(PerformanceRecorder):
             self.perms = [' to '.join(perm) for perm in permutations(ubatches, 2)]
             dataset = [adata.uns['data_name']]
             if self.overall_metrics is None:  # inter-dataset
-                self.overall_metrics = self._generate_table(dataset, exp_cfg.n_genes, self.perms, self.assign_methods, self.assign_metrics, self.methods)
-                self.rare_metric = self._generate_table(dataset, exp_cfg.n_genes, self.perms, self.assign_methods, self.methods)
-                self.overall_metrics_baseline = self._generate_table(dataset, self.perms, self.assign_methods, self.assign_metrics, ['AllGenes'])
+                self.overall_metrics = self._generate_table(dataset, exp_cfg.n_genes, self.perms, self.assign_methods,
+                                                            self.assign_metrics, self.methods)
+                self.rare_metric = self._generate_table(dataset, exp_cfg.n_genes, self.perms, self.assign_methods,
+                                                        self.methods)
+                self.overall_metrics_baseline = self._generate_table(dataset, self.perms, self.assign_methods,
+                                                                     self.assign_metrics, ['AllGenes'])
                 self.rare_metric_baseline = self._generate_table(dataset, self.perms, self.assign_methods, ['AllGenes'])
             else:
-                overall_metrics = self._generate_table(dataset, exp_cfg.n_genes, self.perms, self.assign_methods, self.assign_metrics, self.methods)
-                rare_metric = self._generate_table(dataset, exp_cfg.n_genes, self.perms, self.assign_methods, self.methods)
-                overall_metrics_baseline = self._generate_table(dataset, self.perms, self.assign_methods, self.assign_metrics, ['AllGenes'])
+                overall_metrics = self._generate_table(dataset, exp_cfg.n_genes, self.perms, self.assign_methods,
+                                                       self.assign_metrics, self.methods)
+                rare_metric = self._generate_table(dataset, exp_cfg.n_genes, self.perms, self.assign_methods,
+                                                   self.methods)
+                overall_metrics_baseline = self._generate_table(dataset, self.perms, self.assign_methods,
+                                                                self.assign_metrics, ['AllGenes'])
                 rare_metric_baseline = self._generate_table(dataset, self.perms, self.assign_methods, ['AllGenes'])
 
                 self.overall_metrics = pd.concat([self.overall_metrics, overall_metrics])
@@ -378,7 +348,8 @@ class ClassificationRecorder(PerformanceRecorder):
                             (dataset, n_gene, n_split, assign_method, 'f1_score'), self.current_method] = value
                 else:  # cohen_kappa_score
                     if n_gene is None:
-                        self.overall_metrics_baseline.loc[(dataset, n_split, assign_method, 'cohen_kappa_score')] = value
+                        self.overall_metrics_baseline.loc[
+                            (dataset, n_split, assign_method, 'cohen_kappa_score')] = value
                     else:
                         self.overall_metrics.loc[
                             (dataset, n_gene, n_split, assign_method, 'cohen_kappa_score'), self.current_method] = value
@@ -398,7 +369,8 @@ class ClassificationRecorder(PerformanceRecorder):
             os.path.join(exp_cfg.record_path, 'xlsx', f'{self.assign_type}-classification_rare_metrics.xlsx'))
         # baseline results
         self.overall_metrics_baseline.to_excel(
-            os.path.join(exp_cfg.record_path, 'xlsx', f'{self.assign_type}-classification_overall_metrics_baseline.xlsx'))
+            os.path.join(exp_cfg.record_path, 'xlsx',
+                         f'{self.assign_type}-classification_overall_metrics_baseline.xlsx'))
         self.rare_metric_baseline.to_excel(
             os.path.join(exp_cfg.record_path, 'xlsx', f'{self.assign_type}-classification_rare_metrics_baseline.xlsx'))
 
@@ -566,9 +538,7 @@ class MasterRecorder:
         for measurement, datasets in exp_cfg.measurements.items():
             if measurement in measurements:
                 self.measurements.append(measurement)
-                if measurement == 'population_demixing':
-                    self.mixture = MixtureRecorder(datasets=datasets, methods=methods)
-                elif measurement == 'computation_time':
+                if measurement == 'computation_time':
                     self.time = TimeRecorder(datasets=datasets, methods=methods)
                 elif measurement == 'intra-classification':
                     self.intra = ClassificationRecorder(datasets=datasets, methods=methods, assign_type='intra')

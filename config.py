@@ -3,61 +3,27 @@ import numpy as np
 
 class ExperimentConfig:
     def __init__(self):
-        # unsupervised methods
-        self.method_on = {
-            'var': 'raw',
-            'cv2': 'norm',
-            'random': 'raw',
-            'seurat': 'norm',
-            'seurat_v3': 'raw',
-            'feast': 'raw',  # normalize in R
-            'deviance': 'raw',  # normalize in R
-            'm3drop': 'raw',  # normalize in R
-            'scmap': 'raw',  # normalize in R
-            'cellranger': 'raw'
-        }
-        self.method_lan = {
-            'var': 'python',
-            'cv2': 'python',
-            'random': 'python',
-            'seurat': 'python',
-            'seurat_v3': 'python',
-            'feast': 'r',
-            'deviance': 'r',
-            'm3drop': 'r',
-            'scmap': 'r',
-            'cellranger': 'python'
-        }
         # measurements
         self.measurements = {
-            'population_demixing': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain', 'PBMCsmall',
-                                    'DarmanisBrain', 'GuoHumanTestis', 'QuakeMouseHeart', 'ZeiselMouseBrain',
-                                    'BaronMousePancreas', 'LaMannoHumanEmbryonicStem', 'LaMannoHumanEmbryonicMidbrain',
-                                    'QuakeMouseSpleen', 'QuakeMouseTongue', 'Alles', 'Ariss', 'ToschesLizard'],  #
+            'marker_discovery': ['PBMCbatchone', 'PBMCbatchtwo', 'PBMCsmall', 'SimPBMCsmall',
+                                 'BaronHuman', 'Segerstolpe', 'Zeisel'],
 
-            'marker_discovery': ['baron', 'segerstolpe', 'PBMCsmall', 'simulatingPBMCsmall', 'ZeiselMouseBrain'],
+            'intra-classification': ['PBMCbatchone', 'PBMCbatchtwo'],
+            'inter-classification': ['PBMCbatches'],
 
-            'intra-classification': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
-                                     'PBMCsmall', 'DarmanisBrain', 'GuoHumanTestis', 'QuakeMouseHeart',
-                                     'ZeiselMouseBrain', 'BaronMousePancreas', 'LaMannoHumanEmbryonicStem',
-                                     'LaMannoHumanEmbryonicMidbrain', 'QuakeMouseSpleen', 'QuakeMouseTongue',
-                                     'Alles', 'Ariss', 'ToschesLizard'],
-            'inter-classification': ['PBMCbatchone+PBMCsmall', 'PBMCbatchtwo+PBMCsmall'],
-
-            'clustering': ['PBMCbatchone', 'PBMCbatchtwo'],
+            'clustering': ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
+                           'DarmanisBrain', 'Guo', 'QuakeMouseHeart',
+                           'ZeiselMouseBrain', 'BaronMousePancreas', 'LaMannoStem',
+                           'LaMannoMidbrain', 'QuakeMouseSpleen', 'QuakeMouseTongue',
+                           'Alles', 'Ariss', 'ToschesLizard', 'PBMCbatchone', 'PBMCbatchtwo'],
             # seurat sc3s, bcubed_f1 ARI v-measure
             'batch_correction': ['AztekinTail', 'MouseAtlas', 'MouseHematopoieticStemProgenitor', 'MouseRetina',
                                  'PBMCbatches', 'baron+segerstolpe'],  #
 
-            'computation_time': ['VentoHumanPlacenta500cells', 'VentoHumanPlacenta1000cells',
-                                 'VentoHumanPlacenta2000cells', 'VentoHumanPlacenta5000cells',
-                                 'VentoHumanPlacenta10000cells', 'VentoHumanPlacenta20000cells',
-                                 'VentoHumanPlacenta50000cells',
-                                 'GuoHumanTestis5000genes', 'GuoHumanTestis10000genes',
-                                 'GuoHumanTestis15000genes', 'GuoHumanTestis20000genes',
-                                 'GuoHumanTestis25000genes',
-                                 'PBMC50000cells']  # large-scale datasets, only use 50000 samples
-            # 'VentoHumanPlacenta5000cells'
+            'computation_time': ['Vento500cells', 'Vento1000cells', 'Vento2000cells', 'Vento5000cells',
+                                 'Vento10000cells', 'Vento20000cells', 'Vento50000cells',
+                                 'Guo5000genes', 'Guo10000genes', 'Guo15000genes', 'Guo20000genes', 'Guo25000genes',
+                                 'PBMC50000cells']  # large-scale datasets
         }
 
         self.random_seed = 2021
@@ -80,23 +46,6 @@ class ExperimentConfig:
 class AssignConfig(ExperimentConfig):
     def __init__(self):
         super().__init__()
-        # supervised methods
-        self.method_on.update({
-            'rf': 'raw',
-            'lgb': 'raw',
-            'xgb': 'raw',
-            'nsc': 'norm',
-            'fisher_score': 'raw',
-            'scGeneFit': 'norm',
-        })
-        self.method_lan.update({
-            'rf': 'python',
-            'lgb': 'python',
-            'xgb': 'python',
-            'nsc': 'python',
-            'fisher_score': 'python',
-            'scGeneFit': 'python',
-        })
         self.n_folds = 5  # 5 folds, intra-dataset
         self.evaluation_method = ['SingleR']
 
@@ -116,6 +65,33 @@ class DataConfig:
 
         # marker path
         self.marker_path = "/volume1/home/tdeng/SingleCell/Data/MarkerGene/"
+
+        # used datasets
+        self.full_dataset_names = {'Aztekin': 'AztekinTail',
+                                   'BaronHuman': 'BaronHumanPancreas',
+                                   'BaronMouse': 'BaronMousePancreas',
+                                   'Segerstolpe': 'SegerstolpeHumanPancreas',
+                                   'Vento': 'VentoHumanPlacenta',
+                                   'Zilionis': 'ZilionisMouseLungCancer',
+                                   'LaMannoMidbrain': 'LaMannoHumanEmbryonicMidbrain',
+                                   'LaMannoStem': 'LaMannoHumanEmbryonicStem',
+                                   'Zeisel': 'ZeiselMouseBrain',
+                                   'Marques': 'MarquesMouseBrain',
+                                   'Ariss': 'Ariss',
+                                   'ToschesLizard': 'ToschesLizard',
+                                   'PBMCsmall': 'PBMCsmall',
+                                   'QuakeHeart': 'QuakeMouseHeart',
+                                   'SimPBMCsmall': 'simulatingPBMCsmall',
+                                   'QuakeTongue': 'QuakeMouseTongue',
+                                   'Guo': 'GuoHumanTestis',
+                                   'Alles': 'Alles',
+                                   'QuakeSpleen': 'QuakeMouseSpleen',
+                                   'Darmanis': 'DarmanisBrain',
+                                   'MouseCellAtlas': 'MouseAtlas',
+                                   'PBMCbatchone': 'PBMCbatch1',
+                                   'PBMCbatchtwo': 'PBMCbatch2',
+                                   'MouseRetina': 'MouseRetina',
+                                   'MouseHSP': 'MouseHematopoieticStemProgenitor'}
 
         # remove_types in pancreas data
         self.remove_types = ['unclear', 'not.applicable', 'unclassified', 'co.expression', 'beta.contaminated',
