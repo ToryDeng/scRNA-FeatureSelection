@@ -1,7 +1,7 @@
 import anndata as ad
 import pandas as pd
-import timeout_decorator
-from typing import Optional, List, Literal
+import datetime
+from typing import Optional, List, Union
 # tree models
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
@@ -20,21 +20,20 @@ from sklearn.neighbors import NearestCentroid
 from selection.nearest_centroid import nearest_centroid_select
 from sklearn.model_selection import GridSearchCV
 # configurations
-from config import AssignConfig, ClusterConfig, exp_cfg, assign_cfg
+from config.experiments_config import base_cfg
 # execute R methods
 import anndata2ri
 import traceback
 from rpy2.robjects import r, globalenv
 from rpy2.robjects.packages import importr
-from utils.utils import HiddenPrints, is_saved, load_genes, save_genes, now
+from utils import HiddenPrints, is_saved, load_genes, save_genes
 # ensemble gene selection
 from collections import defaultdict, Counter
-from utils.dataset import load_data
 
 
 def single_select_by_batch(adata: ad.AnnData,
                            method: str,
-                           n_selected_genes: int = exp_cfg.n_genes[-1]):
+                           n_selected_genes: int = base_cfg.n_genes[-1]):
     """
     Calculate feature importances for each gene, and then rank and select genes.
 
@@ -49,7 +48,7 @@ def single_select_by_batch(adata: ad.AnnData,
 
     """
     if method == 'rf':
-        selected_genes_df = random_compute_importance(adata)
+        selected_genes_df = random_forest_compute_importance(adata)
     elif method == 'lgb':
         selected_genes_df = random_compute_importance(adata)
     elif method == 'xgb':
@@ -81,11 +80,11 @@ def single_select_by_batch(adata: ad.AnnData,
     elif method == 'deviance':
         selected_genes_df = deviance_compute_importance(adata)
     else:
-        raise ValueError(f"No implementation of {method}!")
+        raise NotImplementedError(f"No implementation of {method}!")
 
-    # rank features
+    # rank features if importances exist
     selected_genes_df.dropna(inplace=True)
-    if selected_genes_df.shape[1] == 1:
+    if selected_genes_df.shape[1] == 1:  # doesn't have importances, only genes
         selected_genes_df.rename(columns={selected_genes_df.columns[0]: 'Gene'}, inplace=True)
     elif selected_genes_df.shape[1] == 2:  # genes, importances
         col_names = selected_genes_df.columns
@@ -104,29 +103,30 @@ def single_select_by_batch(adata: ad.AnnData,
 
 def ensemble_select_by_batch(adata: ad.AnnData,
                              base_methods: List[str],
-                             n_selected_genes: int = exp_cfg.n_genes[-1],
+                             n_selected_genes: int = base_cfg.n_genes[-1],
                              ):
     # calculate ensemble feature importances
     gene_dict = defaultdict(float)
-    if exp_cfg.ensemble_mode == 'importance_sum':
+    if base_cfg.ensemble_mode == 'importance_sum':
         for base_method in base_methods:
-            selected_df = single_select_by_batch(adata, base_method, n_selected_genes=2000)
+            selected_df = single_select_by_batch(adata, base_method, n_selected_genes=n_selected_genes)
             if selected_df.shape[1] == 1:
                 raise RuntimeError(f"{base_method} can't generate feature importances!")
             min_impo, max_impo = selected_df['Importance'].min(), selected_df['Importance'].max()  # min-max norm
             selected_df['Importance'] = (selected_df['Importance'] - min_impo) / (max_impo - min_impo)
             for gene, importance in zip(selected_df['Gene'], selected_df['Importance']):
                 gene_dict[gene] += importance
-    elif exp_cfg.ensemble_mode == 'count_sum':
+    elif base_cfg.ensemble_mode == 'count_sum':
         for base_method in base_methods:
-            selected_df = single_select_by_batch(adata, base_method, n_selected_genes=2000)
+            selected_df = single_select_by_batch(adata, base_method, n_selected_genes=n_selected_genes)
             for gene in selected_df['Gene']:
                 gene_dict[gene] += 1
     else:
-        raise NotImplementedError(f"{exp_cfg.ensemble_mode} has not been implemented yet.")
+        raise NotImplementedError(f"{base_cfg.ensemble_mode} has not been implemented yet.")
     # rank genes
     sorted_result = pd.Series(gene_dict).dropna().sort_values(ascending=False).reset_index()
-    sorted_result.rename(columns={sorted_result.columns[0]: 'Gene', sorted_result.columns[1]: 'Importance'}, inplace=True)
+    sorted_result.rename(columns={sorted_result.columns[0]: 'Gene', sorted_result.columns[1]: 'Importance'},
+                         inplace=True)
     # select features
     if sorted_result.shape[0] < n_selected_genes:
         raise RuntimeWarning("Genes are not enough to be selected!")
@@ -137,7 +137,7 @@ def ensemble_select_by_batch(adata: ad.AnnData,
 
 def select_genes_by_batch(adata: ad.AnnData,
                           method: str,
-                          n_selected_genes: int = exp_cfg.n_genes[-1],
+                          n_selected_genes: int = base_cfg.n_genes[-1],
                           use_saved: bool = True
                           ):
     if use_saved and is_saved(adata, method, n_selected_genes):
@@ -160,7 +160,9 @@ def select_genes_by_batch(adata: ad.AnnData,
 def select_genes(adata: ad.AnnData,
                  method: str,
                  n_selected_genes: int,
-                 select_by_batch=True):
+                 inplace: bool = False,
+                 use_saved: bool = True,
+                 select_by_batch=True) -> Optional[ad.AnnData]:
     if 'batch' in adata.obs and select_by_batch:
         # calculate feature importances
         ubatches = adata.obs['batch'].unique().categories.to_numpy()
@@ -174,11 +176,14 @@ def select_genes(adata: ad.AnnData,
             else:
                 batch_adata.uns['data_name'] = ubatch
 
-            print(f"{now()}: Start to apply {method} on batch {ubatch}, batch shape: {batch_adata.shape}.")
-            batch_result = select_genes_by_batch(batch_adata, method, n_selected_genes=2000)
+            print(f"{datetime.datetime.now()}: Start to apply {method} on batch {ubatch}, batch shape: {batch_adata.shape}.")
+            batch_result = select_genes_by_batch(batch_adata, method, n_selected_genes, use_saved)
             if batch_result is None:
                 raise RuntimeWarning(f"batch {ubatch} is not used.")
             else:
+                if batch_result.shape[1] == 1:
+                    raise RuntimeError(
+                        f"{method} can't generate gene importances, so it can't select genes on batches!")
                 batch_features.append(batch_result.set_index('Gene')['Importance'])
         batch_features_rank = [batch_feature.rank() for batch_feature in batch_features]
         cnt = Counter()
@@ -202,13 +207,38 @@ def select_genes(adata: ad.AnnData,
             raise RuntimeWarning(f"Only {untied_features.shape[0]} genes! Genes are not enough to be selected!")
         else:
             untied_features = untied_features.iloc[:n_selected_genes, :]
-            untied_features.rename(columns={untied_features.columns[0]: 'Gene', untied_features.columns[1]: 'Rank'}, inplace=True)
-        return untied_features  # most important genes
+            untied_features.rename(columns={untied_features.columns[0]: 'Gene', untied_features.columns[1]: 'Rank'},
+                                   inplace=True)
+        df = untied_features  # most important genes
     else:
-        return select_genes_by_batch(adata, method, n_selected_genes)
+        df = select_genes_by_batch(adata, method, n_selected_genes, use_saved)
+
+    if inplace:
+        subset_adata(adata, df['Gene'].values, inplace=True)
+    else:
+        return subset_adata(adata, df['Gene'].values, inplace=False)
 
 
-# python implementation
+def subset_adata(adata: ad.AnnData, selected_genes: Union[np.ndarray, pd.Index], inplace=False):
+    if isinstance(selected_genes, pd.Index):
+        selected_genes = selected_genes.to_numpy()
+    gene_mask = adata.var_names.isin(selected_genes)
+    if inplace:
+        if adata.raw is not None:
+            adata.raw = adata.raw[:, gene_mask].to_adata()
+        adata._inplace_subset_var(selected_genes)
+        if adata.raw.shape[1] != selected_genes.shape[0] or adata.shape[1] != selected_genes.shape[0]:
+            raise RuntimeError(
+                f"{adata.raw.shape[1]} genes in raw data and {adata.shape[1]} in norm data were selected,"
+                f" not {selected_genes.shape[0]} genes. Please check the gene names."
+            )
+    else:
+        copied_adata = adata.copy()
+        subset_adata(copied_adata, selected_genes, inplace=True)
+        return copied_adata
+
+
+# python methods
 def random_forest_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     y = adata.obs['celltype'].values
     forest = RandomForestClassifier(n_jobs=-1, random_state=0, verbose=0).fit(adata.raw.X, y)
@@ -229,18 +259,18 @@ def xgboost_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
 
 
 def seurat_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
-    sc.pp.highly_variable_genes(adata, flavor='seurat', n_top_genes=adata.n_vars)
+    sc.pp.highly_variable_genes(adata, flavor='seurat', n_top_genes=adata.n_vars // 2)
     return pd.DataFrame({'Gene': adata.var.dispersions_norm.index, 'Importance': adata.var.dispersions_norm})
 
 
 def seurat_v3_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     raw_adata = adata.raw.to_adata()
-    sc.pp.highly_variable_genes(raw_adata, flavor='seurat_v3', n_top_genes=adata.n_vars)
+    sc.pp.highly_variable_genes(raw_adata, flavor='seurat_v3', n_top_genes=adata.n_vars // 2)
     return pd.DataFrame({'Gene': raw_adata.var['variances_norm'].index, 'Importance': raw_adata.var['variances_norm']})
 
 
 def cellranger_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
-    sc.pp.highly_variable_genes(adata, flavor='cell_ranger', n_top_genes=adata.n_vars)
+    sc.pp.highly_variable_genes(adata, flavor='cell_ranger', n_top_genes=adata.n_vars // 2)
     return pd.DataFrame({'Gene': adata.var['dispersions_norm'].index, 'Importance': adata.var.dispersions_norm})
 
 
@@ -256,7 +286,7 @@ def cv2_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
 
 def scGeneFit_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     y = adata.obs['celltype'].values
-    all_genes_importamces = scgenefit.get_importance(adata.X, y, exp_cfg.n_genes[-1], verbose=False)
+    all_genes_importamces = scgenefit.get_importance(adata.X, y, base_cfg.n_genes[-1], verbose=False)
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': all_genes_importamces})
 
 
@@ -275,7 +305,7 @@ def nearest_shrunken_centroid_compute_importance(adata: ad.AnnData) -> Optional[
 
 
 def random_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
-    np.random.seed(exp_cfg.random_seed)
+    np.random.seed(base_cfg.random_seed)
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.random.rand(adata.X.shape[1])})
 
 
@@ -374,4 +404,3 @@ def deviance_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
             return result.reset_index()
     except:
         traceback.print_exc()
-

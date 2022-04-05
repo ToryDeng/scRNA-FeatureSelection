@@ -55,16 +55,11 @@ The normalization method in **Seurat**.
 ## Examples
 ### Evaluation of Single Gene Selection Method
 ```python
-from utils.evaluation import evaluate_feature_selection_methods
 
-evaluate_feature_selection_methods(measurements=['marker_discovery'], methods=['rf', 'xgb', 'nsc', 'var'])
 ```
 ### Evaluation of Ensemble Gene Selection Method
 ```python
-from utils.evaluation import evaluate_feature_selection_methods
 
-
-evaluate_feature_selection_methods(measurements=['marker_discovery'], methods=['rf+fisher_score'])
 ```
 All the records will be stored in the directory ***records/***.
 
