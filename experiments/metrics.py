@@ -5,7 +5,7 @@ import scib
 from sklearn.metrics import classification_report, cohen_kappa_score, adjusted_rand_score, v_measure_score
 from harmonypy import compute_lisi
 from config.experiments_config import BatchCorrectionConfig, CellClassificationConfig, CellClusteringConfig
-from utils import HiddenPrints
+from common_utils.utils import HiddenPrints
 
 
 def marker_discovery_rate(selected_adata: ad.AnnData, original_adata: ad.AnnData):
@@ -55,13 +55,13 @@ def classification_metrics(test_adata: ad.AnnData, config: CellClassificationCon
     if 'f1_score' in config.metrics:
         report = classification_report(test_adata.obs['celltype'], test_adata.obs['assign_label'], output_dict=True, zero_division='warn')
         classification_result['f1_score'] = report['macro avg']['f1-score']
-        if test_adata.uns['rare_type'] is not None:
+        if 'rare_type' in test_adata.uns:
             if test_adata.uns['rare_type'] not in report.keys():
                 raise RuntimeWarning(f"rare cell type {test_adata.uns['rare_type']} not in {report.keys()}!")
             else:
                 classification_result['f1_rare'] = report[test_adata.uns['rare_type']]['f1-score']
     if 'cohen_kappa' in config.metrics:
-        classification_result['f1_rare'] = cohen_kappa_score(test_adata.obs['celltype'], test_adata.obs['assign_label'])
+        classification_result['cohen_kappa'] = cohen_kappa_score(test_adata.obs['celltype'], test_adata.obs['assign_label'])
     return classification_result
 
 
@@ -77,7 +77,7 @@ def clustering_metrics(adata: ad.AnnData, clustering_method: str, config: CellCl
         if 'V' in config.metrics:
             clustering_result[f'V_{run}'] = v_measure_score(labels_true, labels_pred)
         if 'bcubed' in config.metrics:
-            if adata.uns['rare_type'] is not None:
+            if 'rare_type' in adata.uns:
                 clustering_result[f'bcubed_{run}'] = BCubed_fbeta_score(adata, f'{clustering_method}_{run}', True)
 
     return clustering_result

@@ -23,7 +23,7 @@ def nearest_centroid_select(X, y, shrink_threshold):
         nk[cur_class] = np.sum(center_mask)
     if n_classes < 2:
         raise ValueError('The number of classes has to be greater than'
-                             ' one; got %d class' % (n_classes))
+                             ' one; got %d class' % n_classes)
     if shrink_threshold is not None:
         if np.all(np.ptp(X, axis=0) == 0):
             raise ValueError("All features have zero variance. "

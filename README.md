@@ -1,25 +1,54 @@
 # scRNA-FeatureSelection
 Evaluation of several gene selection methods (including ensemble gene selection methods).
 
-## Program Structure
-    selection-       # some feature selection methods in python
-      fisher_score.py      # calculate fisher score
-      nearest_centroid.py  # nearest shrunken centroid 
-      scgenefit.py         # scGeneFit method for feature selection
-    utils-           # functions about data processing and several feature selection methods
-      RCode-               # R scripts
-      classification.py    # classification algorithms in Python
-      evaluation.py        # evaluat specific feature selection methods 
-      importance.py        # calculate importance of every gene and select the most important ones   
-      record.py            # record performance during evaluation
-      utils.py             # data processing functions
-    tempData-        # store temporary data
-    records-         # store records of evaluation
-    main.py          # the main function
-    examples.ipynb-  # some examples about usage
-    config.py        # experiment and data configuration
+## Program structure
+```
+│  .gitignore
+│  examples.ipynb
+│  LICENSE
+│  main.py
+│  README.md
+│  requirements.txt
+│          
+├─cache
+│  │  
+│  ├─geneData       # store selected genes
+│  └─processedData  # store processed datasets
+│                   
+├─common_utils
+│      utils.py           #  common utils
+│ 
+├─config
+│      datasets_config.py   
+│      experiments_config.py 
+│      methods_config.py
+│      
+├─data_loader
+│      dataset.py
+│      utils.py           # utils used in loading and preprocessing data
+│      
+├─experiments
+│      metrics.py         # metrics used in batch correction, cell classification and cell clustering
+│      recorders.py       # record the evaluation results and sink them to disk
+│      run_experiments.py
+│      
+├─figures                 # store the umap and t-sne figures
+│      
+├─other_steps
+│      classification.py  # cell classification algorithms
+│      clustering.py      # cell clustering algorithms
+│      correction.py      # batch correction algorithms
+│      
+├─records                 # store the evaluation results and raw recorders
+└─selection
+        fisher_score.py
+        methods.py        # all feature selection algorithms
+        nearest_centroid.py
+        scgenefit.py
+        utils.py          # utils used in feature selection
+```
 
-## Included Methods
+## Included methods
 | Method | Classification  | Clustering |  Language  |  Reference |
 | :----: | :-------------: | :--------: | :--------: | :--------: |
 | Random Forest | ✔ | ❌ | Python | - |
@@ -37,35 +66,62 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 | Fisher Score | ✔ | ❌ | Python | [8] |
 | FEAST        | ✔ | ✔ |  R     |  [9] |
 
->1. Klassen M, Kim N. Nearest Shrunken Centroid as Feature Selection of Microarray Data[C]//CATA. 2009: 227-232.
->2. Stuart T, Butler A, Hoffman P, et al. Comprehensive integration of single-cell data[J]. Cell, 2019, 177(7): 1888-1902. e21.  
->3. Townes F W, Hicks S C, Aryee M J, et al. Feature selection and dimension reduction for single-cell RNA-Seq based on a multinomial model[J]. Genome biology, 2019, 20(1): 1-16.  
->4. Andrews T S, Hemberg M. M3Drop: dropout-based feature selection for scRNASeq[J]. Bioinformatics, 2019, 35(16): 2865-2867.  
->5. Kiselev V Y, Yiu A, Hemberg M. scmap: projection of single-cell RNA-seq data across data sets[J]. Nature methods, 2018, 15(5): 359-362.
->6. Dumitrascu B, Villar S, Mixon D G, et al. Optimal marker gene selection for cell type discrimination in single cell analyses[J]. Nature communications, 2021, 12(1): 1-8.  
->7. Zheng G X Y, Terry J M, Belgrader P, et al. Massively parallel digital transcriptional profiling of single cells[J]. Nature communications, 2017, 8(1): 1-12.
->8. Li J, Cheng K, Wang S, et al. Feature selection: A data perspective[J]. ACM Computing Surveys (CSUR), 2017, 50(6): 1-45.
->9. Su K, Yu T, Wu H. Accurate feature selection improves single-cell RNA-seq cell clustering[J]. Briefings in Bioinformatics, 2021.
 
+
+## Quality control
+The function that detects ouliers in [Besca](https://bedapub.github.io/besca/preprocessing/besca.pp.valOutlier.html).
 
 ## Normalization
-The normalization method in **Seurat**.
+The normalization method in Seurat and the implementation in [Scanpy](https://scanpy.readthedocs.io/en/latest/generated/scanpy.pp.recipe_seurat.html).
 
 
 ## Examples
-### Evaluation of Single Gene Selection Method
+### Evaluation of single gene selection method
 ```python
+from experiments.run_experiments import run_cell_clustering
 
+run_cell_clustering(fs_methods=['var', 'feast'])
 ```
-### Evaluation of Ensemble Gene Selection Method
+### Evaluation of ensemble gene selection method
 ```python
+from experiments.run_experiments import run_cell_classification
 
+run_cell_classification(fs_methods=['lgb+rf'])
 ```
-All the records will be stored in the directory ***records/***.
+All the records will be stored in the directory `records/`. The recorders are in `records/pkl/`, and the tables are in ***records/xlsx/***
 
+## Adding new methods step by step
+### Evaluating new feature selection methods
+1. Add new methods to the function `single_select_by_batch()` in `selection/methods.py`:
+```python
+elif method == 'deviance':
+    selected_genes_df = deviance_compute_importance(adata)
+"""
+  your new methods
+"""  
+else:
+    raise NotImplementedError(f"No implementation of {method}!")
+```
+The output of the new function should be a dataframe. The first column with name `Gene` contains gene names. The second column
+is not essential. It contains scores of each genes (if they exists). The higher the score is, the more important the gene.
+2. Modify the method configuration `config/methods_config.py`:
+    - in `self.formal_names`
+    ```python
+    'feast': 'FEAST',
+    'abbreviation_1': 'formal_name_1',
+    'abbreviation_2': 'formal_name_2',
+    'rf+fisher_score': 'RF+\nFisher Score',
+    ```
+    - unsupervised methods should be added in `self.unsupervised`, and supervised methods should be added in `self.supervised`
+    ```python
+    self.unsupervised = ['abbreviation_1', 'var', 'cv2', ...]
+    self.supervised = ['abbreviation_2', 'rf', 'lgb', 'xgb', ...]
+    ```
+3. Then you can run the function as shown in examples!
+    ```python
+    from experiments.run_experiments import run_cell_clustering
 
-## Notes
-
-By specifying data type in **config.py**, you can choose which type of data the methods will use.
-
+    run_cell_clustering(fs_methods=['abbreviation_1', 'abbreviation_2'])
+    ```
+   
 

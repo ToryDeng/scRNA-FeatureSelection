@@ -8,14 +8,30 @@ from typing import Literal
 from rpy2.robjects import r, pandas2ri, globalenv
 from rpy2.robjects.packages import importr
 from rpy2.rinterface_lib.embedded import RRuntimeError
-from utils import HiddenPrints
+from common_utils.utils import HiddenPrints, head
 
 
 def cluster_cells(adata: ad.AnnData,
                   method: Literal['SHARP', 'Seurat_v4', 'SC3', 'SC3s'],
                   n_runs: int = 1):
+    """
+    cluster cells in adata. the clustering results are stored in adata.obs, with names of columns: {clustering_method}_{run}
+
+    Parameters
+    ----------
+    adata
+      the anndata to be clustered
+    method
+     the clustering method
+    n_runs
+     number of runs
+    Returns
+    -------
+    None
+    """
     print(f"{method} clustering starts. {adata.n_obs} cells and {adata.n_vars} genes in data...")
     for run in range(1, n_runs + 1):
+        head(method, run)
         try:
             if method == 'SHARP':
                 cluster_labels = SHARP_clustering(adata, random_seed=run)
@@ -30,6 +46,7 @@ def cluster_cells(adata: ad.AnnData,
             else:
                 raise NotImplementedError(f"{method} has not been implemented!")
             adata.obs[f"{method}_{run}"] = cluster_labels
+            print(f"clustering labels have been stored in adata.obs['{method}_{run}']")
         except:
             print(f"{method} failed.")
             traceback.print_exc()

@@ -15,10 +15,11 @@ class MethodConfig:
             'fisher_score': 'Fisher Score',
             'scGeneFit': 'scGeneFit',
             'cellranger': 'CellRanger',
+            'feast': 'FEAST',
             'rf+fisher_score': 'RF+\nFisher Score',
             'seurat_v3+deviance': 'Seurat v3+\nDeviance'
         }
-        self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'scmap', 'cellranger']
+        self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger']
         self.supervised = ['rf', 'lgb', 'xgb', 'nsc', 'fisher_score', 'scGeneFit']
 
 

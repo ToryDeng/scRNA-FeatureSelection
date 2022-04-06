@@ -24,9 +24,10 @@ from config.experiments_config import base_cfg
 # execute R methods
 import anndata2ri
 import traceback
-from rpy2.robjects import r, globalenv
+from rpy2.robjects import r, globalenv, NULL
 from rpy2.robjects.packages import importr
-from utils import HiddenPrints, is_saved, load_genes, save_genes
+from common_utils.utils import HiddenPrints
+from selection.utils import is_saved, load_genes, save_genes, subset_adata
 # ensemble gene selection
 from collections import defaultdict, Counter
 
@@ -142,7 +143,7 @@ def select_genes_by_batch(adata: ad.AnnData,
                           ):
     if use_saved and is_saved(adata, method, n_selected_genes):
         final_result = load_genes(adata, method, n_selected_genes)
-        print('Using previously saved genes and importances...')
+        print(f'When selecting {n_selected_genes} genes: using previously saved genes and importances...')
     else:  # do not use saved genes or genes have not been saved
         try:
             if '+' in method:
@@ -217,25 +218,6 @@ def select_genes(adata: ad.AnnData,
         subset_adata(adata, df['Gene'].values, inplace=True)
     else:
         return subset_adata(adata, df['Gene'].values, inplace=False)
-
-
-def subset_adata(adata: ad.AnnData, selected_genes: Union[np.ndarray, pd.Index], inplace=False):
-    if isinstance(selected_genes, pd.Index):
-        selected_genes = selected_genes.to_numpy()
-    gene_mask = adata.var_names.isin(selected_genes)
-    if inplace:
-        if adata.raw is not None:
-            adata.raw = adata.raw[:, gene_mask].to_adata()
-        adata._inplace_subset_var(selected_genes)
-        if adata.raw.shape[1] != selected_genes.shape[0] or adata.shape[1] != selected_genes.shape[0]:
-            raise RuntimeError(
-                f"{adata.raw.shape[1]} genes in raw data and {adata.shape[1]} in norm data were selected,"
-                f" not {selected_genes.shape[0]} genes. Please check the gene names."
-            )
-    else:
-        copied_adata = adata.copy()
-        subset_adata(copied_adata, selected_genes, inplace=True)
-        return copied_adata
 
 
 # python methods
@@ -328,7 +310,8 @@ def FEAST_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
             anndata2ri.activate()
             importr('FEAST')
             importr('doParallel')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+            raw_adata = adata.raw.to_adata()
+            globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
             r("""
             Y <- process_Y(assay(sce, 'X'), thre = 2)
             n_classes <- dim(unique(colData(sce)['celltype']))[1]
@@ -359,7 +342,8 @@ def M3Drop_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
         with HiddenPrints():
             anndata2ri.activate()
             importr('M3Drop')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+            raw_adata = adata.raw.to_adata()
+            globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
             r("""
             norm <- M3DropConvertData(assay(sce, 'X'), is.counts=TRUE)
             DE_genes <- M3DropFeatureSelection(norm, mt_method="fdr", mt_threshold=1, suppress.plot = TRUE)
@@ -379,7 +363,8 @@ def scmap_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
             importr('scmap')
             importr('scater')
             importr('dplyr')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+            raw_adata = adata.raw.to_adata()
+            globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
             r("""
             assay(sce, 'X') <- as.matrix(assay(sce, 'X'))
             sce <- logNormCounts(sce, assay.type = "X")
@@ -398,7 +383,8 @@ def deviance_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
         with HiddenPrints():
             anndata2ri.activate()
             importr('scry')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())  # deviance need raw data
+            raw_adata = adata.raw.to_adata()
+            globalenv['sce'] = anndata2ri.py2rpy(raw_adata)  # deviance need raw data
             result = r("rowData(devianceFeatureSelection(sce, assay='X'))['binomial_deviance']")
             anndata2ri.deactivate()
             return result.reset_index()

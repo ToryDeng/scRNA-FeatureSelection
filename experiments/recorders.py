@@ -42,7 +42,7 @@ class BasicExperimentRecorder:
         n_rows, row_idxs = 1, []
         for row_grp in row_grps:
             if isinstance(row_grp, str) or isinstance(row_grp, int):
-                row_idxs.append(row_grp)
+                row_idxs.append([row_grp])
             else:  # non-string and non-integer
                 if isinstance(row_grp, Iterable):
                     n_rows *= sum(1 for _ in row_grp)
@@ -64,9 +64,9 @@ class BasicExperimentRecorder:
         with open(os.path.join(self.config.sink_dir, 'pkl', f'{self.__class__.__name__}.pkl'), 'wb') as f:
             pickle.dump(self, f)
         # sink tables
-        for name, attr in self.__dict__:
+        for name, attr in self.__dict__.items():
             if isinstance(attr, pd.DataFrame):
-                attr.to_excel(os.path.join(os.path.join(self.config.sink_dir, 'xlsx', f'{name}.xlsx')))
+                attr.to_excel(os.path.join(os.path.join(self.config.sink_dir, 'xlsx', f'{name}.xlsx')), encoding='utf-8')
         print(f"{datetime.datetime.now()}: Finished and saved record to {self.config.sink_dir}\n\n\n")
 
 
@@ -128,7 +128,7 @@ class AssignRecorder(BasicExperimentRecorder):
             pass
 
     def record(self, dataset: str, n_genes: Union[int, str], method: str, metrics: dict, fs_method: str = None, n_fold: int = None):
-        if n_fold is None:  # intra-dataset classification
+        if n_fold is not None:  # intra-dataset classification
             for metric, value in metrics.items():
                 if metric in self.config.metrics:
                     if isinstance(n_genes, str):  # all genes

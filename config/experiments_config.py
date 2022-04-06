@@ -18,8 +18,8 @@ class CellClassificationConfig(BasicExperimentConfig):
         super(CellClassificationConfig, self).__init__()
         self.methods = ['SingleR']
         self.is_intra = True
-        self.intra_datasets = ['PBMCbatchone', 'PBMCbatchtwo']
-        self.n_folds = 5  # 5 folds, intra-dataset
+        self.intra_datasets = ['PBMCsmall', 'PBMCbatchtwo']
+        self.n_folds = 5  # 5 folds, in intra-dataset
         self.inter_datasets = ['PBMCbatchone+PBMCbatchtwo']
         self.metrics = ['f1_score', 'cohen_kappa', 'f1_rare']
 
@@ -27,13 +27,11 @@ class CellClassificationConfig(BasicExperimentConfig):
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['baron', 'segerstolpe', 'ZilionisMouseLungCancer', 'MarquesMouseBrain',
-                         'DarmanisBrain', 'Guo', 'QuakeMouseHeart',
-                         'ZeiselMouseBrain', 'BaronMousePancreas', 'LaMannoStem',
-                         'LaMannoMidbrain', 'QuakeMouseSpleen', 'QuakeMouseTongue',
+        self.datasets = ['BaronHuman', 'Segerstolpe', 'Zilionis', 'Marques', 'Darmanis', 'Guo', 'QuakeHeart',
+                         'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue',
                          'Alles', 'Ariss', 'ToschesLizard', 'PBMCbatchone', 'PBMCbatchtwo']
         self.rare_type_detection_metric = 'bcubed'  # f-measure
-        self.methods = {'sc3s': 20}  # clustering_method: number of runs
+        self.methods = {'SC3s': 2, 'Seurat_v4': 1}  # clustering_method: number of runs
         self.metrics = ['ARI', 'V', 'bcubed']
 
 

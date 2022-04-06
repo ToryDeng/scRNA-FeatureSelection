@@ -2,12 +2,13 @@ import time
 from typing import List
 from config.experiments_config import marker_cfg, assign_cfg, cluster_cfg, batch_cfg, time_cfg
 from experiments.recorders import init_recorder
-from dataset import yield_train_test_data, load_data
-from utils import plot_2D
-from selection.methods import select_genes, subset_adata
-from otherSteps.correction import correct_batch_effect
-from otherSteps.classification import classify_cells
-from otherSteps.clustering import cluster_cells
+from data_loader.dataset import yield_train_test_data, load_data
+from common_utils.utils import plot_2D, head
+from selection.methods import select_genes
+from selection.utils import subset_adata
+from other_steps.correction import correct_batch_effect
+from other_steps.classification import classify_cells
+from other_steps.clustering import cluster_cells
 from experiments.metrics import marker_discovery_rate, correction_metrics, classification_metrics, clustering_metrics
 
 
@@ -19,8 +20,8 @@ def run_marker_discovery(fs_methods: List[str]):
             for n_genes in marker_cfg.n_genes:
                 selected_adata = select_genes(adata, fs_method, n_genes)
                 rate = marker_discovery_rate(selected_adata, adata)
-                recorder.record(dataset_name, n_genes, fs_method, rate=rate)
-    recorder.sink()
+                recorder.record(dataset_name, n_genes, fs_method, rate)
+        recorder.sink()  # sink every dataset
 
 
 def run_computation_time(fs_methods: List[str]):
@@ -29,10 +30,10 @@ def run_computation_time(fs_methods: List[str]):
         adata = load_data(dataset_name)
         for fs_method in fs_methods:
             t0 = time.perf_counter()
-            select_genes(adata, fs_method, time_cfg.n_genes[-1])
+            select_genes(adata, fs_method, time_cfg.n_genes[-1], use_saved=False)
             t1 = time.perf_counter()
-            recorder.record(dataset_name, fs_method, seconds=t1 - t0)
-    recorder.sink()
+            recorder.record(dataset_name, fs_method, t1 - t0)
+        recorder.sink()  # sink every dataset
 
 
 def run_batch_correction(fs_methods: List[str]):
@@ -56,21 +57,23 @@ def run_batch_correction(fs_methods: List[str]):
                     results = correction_metrics(selected_adata, batch_cfg)
                     recorder.record(dataset_name, 'correction_first', n_genes, bc_method, fs_method, results)
                     plot_2D(corrected_adata, fs_method, bc_method, 'after', 'correction_first')
-    recorder.sink()
+        recorder.sink()  # sink every dataset
 
 
 def run_cell_classification(fs_methods: List[str]):
     recorder = init_recorder(fs_methods, assign_cfg)
-    for dataset_name in assign_cfg.datasets:
+    for dataset_name in assign_cfg.intra_datasets if assign_cfg.is_intra else assign_cfg.inter_datasets:
         adata = load_data(dataset_name)  # load the whole dataset
         recorder.extend_record_table(adata)  # add new part of table to the existing table, or create new table
-        data_generator = yield_train_test_data(adata, assign_cfg)  # create a generator
-        for train_adata, test_adata in data_generator:  # fold / batch:  split the dataset
+        data_generator = yield_train_test_data(adata, assign_cfg)  # create a data generator
+        for i, (train_adata, test_adata) in enumerate(data_generator):  # fold / batch:  split the data
             for assign_method in assign_cfg.methods:
+                head(assign_method, i + 1)
                 # baseline: all genes;
                 classify_cells(train_adata, test_adata, assign_method)
                 baseline_results = classification_metrics(test_adata, assign_cfg)
-                recorder.record(test_adata.uns['data_name'], 'AllGenes', assign_method, baseline_results)
+                recorder.record(test_adata.uns['data_name'], 'AllGenes', assign_method, baseline_results,
+                                n_fold=i + 1 if assign_cfg.is_intra else None)
                 for n_genes in assign_cfg.n_genes:
                     for fs_method in fs_methods:
                         # select genes on training set and do classification
@@ -79,23 +82,25 @@ def run_cell_classification(fs_methods: List[str]):
                         classify_cells(selected_train_adata, selected_test_adata, assign_method)
                         results = classification_metrics(test_adata, assign_cfg)
                         recorder.record(test_adata.uns['data_name'], n_genes, assign_method, results, fs_method,
-                                        n_fold=test_adata.uns['fold'] if assign_cfg.is_intra else None)
-    recorder.sink()
+                                        n_fold=i + 1 if assign_cfg.is_intra else None)
+        recorder.sink()
 
 
 def run_cell_clustering(fs_methods: List[str]):
     recorder = init_recorder(fs_methods, cluster_cfg)
-    for dataset_name in assign_cfg.datasets:
+    for dataset_name in cluster_cfg.datasets:
         adata = load_data(dataset_name)
         for cluster_method in cluster_cfg.methods:
             # baseline: all genes;
             cluster_cells(adata, cluster_method, cluster_cfg.methods[cluster_method])
             baseline_results = clustering_metrics(adata, cluster_method, cluster_cfg)
+            recorder.extend_record_table(dataset_name, 'AllGenes', cluster_method)
             recorder.record(dataset_name, 'AllGenes', cluster_method, baseline_results)
             for fs_method in fs_methods:
                 for n_genes in cluster_cfg.n_genes:
+                    recorder.extend_record_table(dataset_name, n_genes, cluster_method)
                     selected_adata = select_genes(adata, fs_method, n_genes)
                     cluster_cells(selected_adata, cluster_method, cluster_cfg.methods[cluster_method])
                     results = clustering_metrics(selected_adata, cluster_method, cluster_cfg)
                     recorder.record(dataset_name, n_genes, cluster_method, results, fs_method)
-    recorder.sink()
+        recorder.sink()  # sink every dataset

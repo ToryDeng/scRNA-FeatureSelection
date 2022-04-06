@@ -4,11 +4,28 @@ import anndata2ri
 import traceback
 from rpy2.robjects import r, globalenv
 from rpy2.robjects.packages import importr
-from utils import HiddenPrints
+from common_utils.utils import HiddenPrints
 
 
 def classify_cells(train_adata: ad.AnnData, test_adata: ad.AnnData, method: str, col_name: str = 'assign_label'):
-    print(f"{method} clustering starts. {train_adata.n_obs} cells and {train_adata.n_vars} genes in train data..."
+    """
+    train a classifier on training set and predict labels on test set.
+
+    Parameters
+    ----------
+    train_adata
+      the training set
+    test_adata
+      the test set
+    method
+      the classification method
+    col_name
+     name of the column that stores the predicted labels
+    Returns
+    -------
+    None
+    """
+    print(f"{method} starts. {train_adata.n_obs} cells and {train_adata.n_vars} genes in train data; "
           f"{test_adata.n_obs} cells and {test_adata.n_vars} genes in test data...")
     try:
         if method == 'SingleR':
@@ -20,8 +37,7 @@ def classify_cells(train_adata: ad.AnnData, test_adata: ad.AnnData, method: str,
         traceback.print_exc()
 
 
-
-def SingleR(adata_train: ad.AnnData, adata_test: ad.AnnData):
+def SingleR(adata_train: ad.AnnData, adata_test: ad.AnnData) -> np.ndarray:
     """
     Using raw data to train a classifier on training dataset and predict on test dataset
 
@@ -33,7 +49,8 @@ def SingleR(adata_train: ad.AnnData, adata_test: ad.AnnData):
       test dataset
     Returns
     -------
-
+    label_pred
+      the predicted labels of test samples
     """
     assert adata_train.raw is not None and adata_test.raw is not None, "datasets do not contain raw counts!"
     with HiddenPrints():

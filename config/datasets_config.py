@@ -5,7 +5,7 @@ class DatasetConfig:
     def __init__(self):
         # data path
         self.data_path = "/volume2/bioinfo/scRNA/python_data/"
-        self.cache_path = 'cachedData/'
+        self.cache_path = 'cache/'
 
         # marker path
         self.marker_path = "/volume1/home/tdeng/SingleCell/Data/MarkerGene/"
