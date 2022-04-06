@@ -90,8 +90,7 @@ run_cell_classification(fs_methods=['lgb+rf'])
 ```
 All the records will be stored in the directory `records/`. The recorders are in `records/pkl/`, and the tables are in `records/xlsx/`
 
-## Adding new methods step by step
-### Evaluating new feature selection methods
+## Evaluating new feature selection methods step by step
 1. Add new methods to the function `single_select_by_batch()` in `selection/methods.py`:
    ```python
    elif method == 'deviance':
