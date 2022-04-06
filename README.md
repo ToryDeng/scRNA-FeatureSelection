@@ -88,22 +88,22 @@ from experiments.run_experiments import run_cell_classification
 
 run_cell_classification(fs_methods=['lgb+rf'])
 ```
-All the records will be stored in the directory `records/`. The recorders are in `records/pkl/`, and the tables are in ***records/xlsx/***
+All the records will be stored in the directory `records/`. The recorders are in `records/pkl/`, and the tables are in `records/xlsx/`
 
 ## Adding new methods step by step
 ### Evaluating new feature selection methods
 1. Add new methods to the function `single_select_by_batch()` in `selection/methods.py`:
-```python
-elif method == 'deviance':
-    selected_genes_df = deviance_compute_importance(adata)
-"""
-  your new methods
-"""  
-else:
-    raise NotImplementedError(f"No implementation of {method}!")
-```
-The output of the new function should be a dataframe. The first column with name `Gene` contains gene names. The second column
-is not essential. It contains scores of each genes (if they exists). The higher the score is, the more important the gene.
+   ```python
+   elif method == 'deviance':
+       selected_genes_df = deviance_compute_importance(adata)
+   """
+     your new methods
+   """  
+   else:
+       raise NotImplementedError(f"No implementation of {method}!")
+   ```
+    The output of the new function should be a dataframe. The first column with name `Gene` contains gene names. The second column
+    is not essential. It contains scores of each genes (if they exists). The higher the score is, the more important the gene.
 2. Modify the method configuration `config/methods_config.py`:
     - in `self.formal_names`
     ```python
