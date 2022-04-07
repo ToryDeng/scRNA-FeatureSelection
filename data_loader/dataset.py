@@ -11,7 +11,7 @@ from sklearn.model_selection import StratifiedKFold
 from common_utils.utils import head, complexity
 from config.datasets_config import data_cfg
 from config.experiments_config import CellClassificationConfig
-from data_loader.utils import standardize_adata, control_quality, sample_adata, store_markers, log_normalize,\
+from data_loader.utils import standardize_adata, control_quality, sample_adata, store_markers, log_normalize, \
     set_rare_type
 
 

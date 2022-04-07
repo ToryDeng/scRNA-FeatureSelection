@@ -1,8 +1,10 @@
 import os
+from typing import Union
+
+import anndata as ad
 import numpy as np
 import pandas as pd
-import anndata as ad
-from typing import Union
+
 from config.datasets_config import data_cfg
 
 

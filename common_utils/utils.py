@@ -1,11 +1,12 @@
 import os
 import sys
 import warnings
+from typing import Optional, Literal
+
 import anndata as ad
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
-from typing import Optional, Literal
 
 matplotlib.use('agg')
 import scanpy as sc

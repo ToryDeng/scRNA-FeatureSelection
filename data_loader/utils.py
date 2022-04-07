@@ -1,8 +1,8 @@
 import os
 import re
 from functools import reduce
-from typing import Literal, Tuple
 from math import e
+from typing import Literal, Tuple
 
 import anndata as ad
 import besca as bc
@@ -13,7 +13,6 @@ import scanpy as sc
 from common_utils.utils import HiddenPrints
 from config.datasets_config import data_cfg
 from config.experiments_config import base_cfg, assign_cfg
-from rpy2.robjects import NULL
 
 
 def clean_var_names(gene_names: pd.Index) -> np.ndarray:

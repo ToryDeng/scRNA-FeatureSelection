@@ -1,15 +1,16 @@
 import time
 from typing import List
-from config.experiments_config import marker_cfg, assign_cfg, cluster_cfg, batch_cfg, time_cfg
-from experiments.recorders import init_recorder
-from data_loader.dataset import yield_train_test_data, load_data
+
 from common_utils.utils import plot_2D, head
-from selection.methods import select_genes
-from selection.utils import subset_adata
-from other_steps.correction import correct_batch_effect
+from config.experiments_config import marker_cfg, assign_cfg, cluster_cfg, batch_cfg, time_cfg
+from data_loader.dataset import yield_train_test_data, load_data
+from experiments.metrics import marker_discovery_rate, correction_metrics, classification_metrics, clustering_metrics
+from experiments.recorders import init_recorder
 from other_steps.classification import classify_cells
 from other_steps.clustering import cluster_cells
-from experiments.metrics import marker_discovery_rate, correction_metrics, classification_metrics, clustering_metrics
+from other_steps.correction import correct_batch_effect
+from selection.methods import select_genes
+from selection.utils import subset_adata
 
 
 def run_marker_discovery(fs_methods: List[str]):

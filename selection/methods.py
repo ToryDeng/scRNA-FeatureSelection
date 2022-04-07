@@ -1,35 +1,37 @@
-import anndata as ad
-import pandas as pd
 import datetime
-from typing import Optional, List, Union
-# tree models
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
-from lightgbm import LGBMClassifier
-from xgboost import XGBClassifier
+import traceback
+# ensemble gene selection
+from collections import defaultdict, Counter
+from typing import Optional, List
+
+import anndata as ad
+# execute R methods
+import anndata2ri
 # var, cv2
 import numpy as np
+import pandas as pd
 # seurat
 import scanpy as sc
+from lightgbm import LGBMClassifier
+from rpy2.robjects import r, globalenv
+from rpy2.robjects.packages import importr
+# tree models
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
+# nearest shrunken centroid
+from sklearn.neighbors import NearestCentroid
+from sklearn.preprocessing import LabelEncoder
+from xgboost import XGBClassifier
+
+from common_utils.utils import HiddenPrints
+# configurations
+from config.experiments_config import base_cfg
 # scGeneFit
 from selection import scgenefit
 # fisher score
 from selection.fisher_score import fisher_score
-# nearest shrunken centroid
-from sklearn.neighbors import NearestCentroid
 from selection.nearest_centroid import nearest_centroid_select
-from sklearn.model_selection import GridSearchCV
-# configurations
-from config.experiments_config import base_cfg
-# execute R methods
-import anndata2ri
-import traceback
-from rpy2.robjects import r, globalenv, NULL
-from rpy2.robjects.packages import importr
-from common_utils.utils import HiddenPrints
 from selection.utils import is_saved, load_genes, save_genes, subset_adata
-# ensemble gene selection
-from collections import defaultdict, Counter
 
 
 def single_select_by_batch(adata: ad.AnnData,

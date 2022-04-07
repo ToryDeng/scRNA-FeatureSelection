@@ -1,14 +1,17 @@
-import numpy as np
-import anndata as ad
-import scanpy as sc
-import sc3s
-import anndata2ri
 import traceback
 from typing import Literal
+
+import anndata as ad
+import anndata2ri
+import numpy as np
+import sc3s
+import scanpy as sc
+from rpy2.rinterface_lib.embedded import RRuntimeError
 from rpy2.robjects import r, pandas2ri, globalenv
 from rpy2.robjects.packages import importr
-from rpy2.rinterface_lib.embedded import RRuntimeError
+
 from common_utils.utils import HiddenPrints, head
+from config.experiments_config import cluster_cfg
 
 
 def cluster_cells(adata: ad.AnnData,
@@ -34,15 +37,15 @@ def cluster_cells(adata: ad.AnnData,
         head(method, run)
         try:
             if method == 'SHARP':
-                cluster_labels = SHARP_clustering(adata, random_seed=run)
+                cluster_labels = SHARP_clustering(adata, random_seed=cluster_cfg.random_seed + run)
             elif method == 'Seurat_v4':
                 if n_runs != 1:
                     raise RuntimeWarning("Seurat v4 clustering is not a random algorithm...")
                 cluster_labels = Seurat_v4_clustering(adata)
             elif method == 'SC3':
-                cluster_labels = SC3_clustering(adata, random_seed=run)
+                cluster_labels = SC3_clustering(adata, random_seed=cluster_cfg.random_seed + run)
             elif method == 'SC3s':
-                cluster_labels = SC3s_clustering(adata, random_seed=run)
+                cluster_labels = SC3s_clustering(adata, random_seed=cluster_cfg.random_seed + run)
             else:
                 raise NotImplementedError(f"{method} has not been implemented!")
             adata.obs[f"{method}_{run}"] = cluster_labels
