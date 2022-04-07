@@ -113,9 +113,6 @@ def plot_2D(combined_adata: ad.AnnData,
     plot_umap(combined_adata, fig_name, **params)
 
 
-
-
-
 class HiddenPrints:
     """
     Hide prints from terminal

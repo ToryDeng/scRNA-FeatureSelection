@@ -95,11 +95,9 @@ def run_cell_clustering(fs_methods: List[str]):
             # baseline: all genes;
             cluster_cells(adata, cluster_method, cluster_cfg.methods[cluster_method])
             baseline_results = clustering_metrics(adata, cluster_method, cluster_cfg)
-            recorder.extend_record_table(dataset_name, 'AllGenes', cluster_method)
             recorder.record(dataset_name, 'AllGenes', cluster_method, baseline_results)
             for fs_method in fs_methods:
                 for n_genes in cluster_cfg.n_genes:
-                    recorder.extend_record_table(dataset_name, n_genes, cluster_method)
                     selected_adata = select_genes(adata, fs_method, n_genes)
                     cluster_cells(selected_adata, cluster_method, cluster_cfg.methods[cluster_method])
                     results = clustering_metrics(selected_adata, cluster_method, cluster_cfg)

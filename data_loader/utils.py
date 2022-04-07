@@ -142,6 +142,17 @@ def load_markers(marker_type: Literal['PBMC', 'SimPBMCsmall', 'pancreas', 'brain
 
 
 def store_markers(adata: ad.AnnData):
+    """
+    load and store marker genes (if the dataset has) in adata.
+
+    Parameters
+    ----------
+    adata
+      the anndata object
+    Returns
+    -------
+    None
+    """
     if 'data_name' in adata.uns:
         panglao, cellmarker = None, None
         if adata.uns['data_name'] in ('PBMCsmall', 'PBMCbatchone', 'PBMCbatchtwo'):  # PBMC

@@ -172,6 +172,7 @@ class ClusterRecorder(BasicExperimentRecorder):
                                      f" are not in the list of unsupervised methods in method config")
 
     def record(self, dataset: str, n_genes: Union[int, str], method: str, metrics: dict, fs_method: str = None):
+        self.extend_record_table(dataset, n_genes, method)
         for metric_run, value in metrics.items():
             metric, run = metric_run.split('_')
             if metric in self.config.metrics:
