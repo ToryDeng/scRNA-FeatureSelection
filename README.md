@@ -3,11 +3,7 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 
 ## Program structure
 ```
-│  .gitignore
-│  LICENSE
 │  main.py
-│  README.md
-│  requirements.txt
 │          
 ├─cache
 │  │  
@@ -17,19 +13,19 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 ├─common_utils
 │      utils.py           #  common utils
 │ 
-├─config
+├─config                  
 │      datasets_config.py   
 │      experiments_config.py 
 │      methods_config.py
 │      
 ├─data_loader
-│      dataset.py
+│      dataset.py         # load and preprocess datasets
 │      utils.py           # utils used in loading and preprocessing data
 │      
 ├─experiments
 │      metrics.py         # metrics used in batch correction, cell classification and cell clustering
 │      recorders.py       # record the evaluation results and sink them to disk
-│      run_experiments.py
+│      run_experiments.py # run each experiment by calling the corresponding function
 │      
 ├─figures                 # store the umap and t-sne figures
 │      
@@ -38,7 +34,7 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 │      clustering.py      # cell clustering algorithms
 │      correction.py      # batch correction algorithms
 │      
-├─records                 # store the evaluation results and raw recorders
+├─records                 # store the evaluation results and recorders
 └─selection
         fisher_score.py
         methods.py        # all feature selection algorithms
@@ -108,8 +104,8 @@ All the records will be stored in the directory `records/`. The recorders are in
    else:
        raise NotImplementedError(f"No implementation of {method}!")
    ```
-    - ***input*** of your new functions: an **`anndata`** object, in whcih the **`anndata.X`** is the log-normalized data, 
-    the **`anndata.raw`** is the  data after quality control but before normalization, and the normalized data is in **`adata.layers['normalized']`**.
+    - ***input*** of your new functions: an `anndata` object, in whcih the `anndata.X` is the log-normalized data, 
+    the `anndata.raw` is the  data after quality control but before normalization, and the normalized data is in `adata.layers['normalized']`.
     - ***output*** of your new functions: a dataframe. The first column with name `Gene` contains gene names. The second column
     is not necessary. It contains scores of each genes (if they exist). The higher the score is, the more important the gene.
     
