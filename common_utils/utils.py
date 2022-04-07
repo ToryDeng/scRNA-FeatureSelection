@@ -104,11 +104,11 @@ def plot_2D(combined_adata: ad.AnnData,
     )
     params = {'color': ['batch', 'celltype_to_plot'], 'hspace': 0.15, 'wspace': 0.15, 'frameon': False,
               'palette': sc.pl.palettes.vega_20_scanpy, 'show': False, 'legend_fontsize': 'xx-small'}
-
+    sc.pp.pca(combined_adata)  # do PCA anyway
     if mode == 'before':
         fig_name = f" {combined_adata.uns['data_name']}-{mode}.png"
     else:
-        fig_name = f" {combined_adata.uns['data_name']}-{mode}-{combined_adata.shape[1]}-{fs_method}-{bc_method}-{order}.png "
+        fig_name = f" {combined_adata.uns['data_name']}-{mode}-{combined_adata.shape[1]}-{fs_method}-{bc_method}-{order}.png"
     plot_tsne(combined_adata, fig_name, **params)
     plot_umap(combined_adata, fig_name, **params)
 

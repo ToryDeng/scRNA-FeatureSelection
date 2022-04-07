@@ -1,4 +1,5 @@
 import anndata as ad
+import scanpy as sc
 import bcubed
 import numpy as np
 import scib
@@ -32,6 +33,7 @@ def BCubed_fbeta_score(adata: ad.AnnData, use_cluster_rep: str, only_rare: bool 
 
 
 def correction_metrics(adata: ad.AnnData, config: BatchCorrectionConfig) -> dict:
+    sc.pp.pca(adata)  # do PCA anyway
     correction_result = dict()
 
     with HiddenPrints():

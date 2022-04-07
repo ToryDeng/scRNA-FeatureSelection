@@ -46,7 +46,7 @@ def run_batch_correction(fs_methods: List[str]):
             for n_genes in batch_cfg.n_genes:
                 for bc_method in batch_cfg.methods:
                     # feature selection + batch correction
-                    selected_adata = select_genes(adata, fs_method, n_genes)
+                    selected_adata = select_genes(adata, fs_method, n_genes, select_by_batch=True)
                     corrected_adata = correct_batch_effect(selected_adata, bc_method)
                     results = correction_metrics(corrected_adata, batch_cfg)
                     recorder.record(dataset_name, 'selection_first', n_genes, bc_method, fs_method, results)
@@ -54,7 +54,7 @@ def run_batch_correction(fs_methods: List[str]):
 
                     # batch correction + feature selection
                     corrected_adata = correct_batch_effect(adata, bc_method)
-                    selected_adata = select_genes(corrected_adata, fs_method, n_genes)
+                    selected_adata = select_genes(corrected_adata, fs_method, n_genes, select_by_batch=False)
                     results = correction_metrics(selected_adata, batch_cfg)
                     recorder.record(dataset_name, 'correction_first', n_genes, bc_method, fs_method, results)
                     plot_2D(corrected_adata, fs_method, bc_method, 'after', 'correction_first')
@@ -78,7 +78,7 @@ def run_cell_classification(fs_methods: List[str]):
                 for n_genes in assign_cfg.n_genes:
                     for fs_method in fs_methods:
                         # select genes on training set and do classification
-                        selected_train_adata = select_genes(train_adata, fs_method, n_genes)
+                        selected_train_adata = select_genes(train_adata, fs_method, n_genes, select_by_batch=False)
                         selected_test_adata = subset_adata(test_adata, selected_train_adata.var_names)
                         classify_cells(selected_train_adata, selected_test_adata, assign_method)
                         results = classification_metrics(test_adata, assign_cfg)

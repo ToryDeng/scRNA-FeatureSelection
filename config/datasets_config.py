@@ -31,7 +31,7 @@ class DatasetConfig:
                                    'Alles': 'Alles',
                                    'QuakeSpleen': 'QuakeMouseSpleen',
                                    'Darmanis': 'DarmanisBrain',
-                                   'MouseCellAtlas': 'MouseAtlas',
+                                   'MouseAtlas': 'MouseCellAtlas',
                                    'PBMCbatchone': 'PBMCbatch1',
                                    'PBMCbatchtwo': 'PBMCbatch2',
                                    'MouseRetina': 'MouseRetina',

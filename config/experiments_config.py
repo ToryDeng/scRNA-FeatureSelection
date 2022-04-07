@@ -38,8 +38,8 @@ class CellClusteringConfig(BasicExperimentConfig):
 class BatchCorrectionConfig(BasicExperimentConfig):
     def __init__(self):
         super(BatchCorrectionConfig, self).__init__()
-        self.datasets = ['AztekinTail', 'MouseAtlas', 'MouseHSP', 'MouseRetina',
-                         'PBMCbatchone+PBMCbatchtwo', 'baron+segerstolpe']
+        self.datasets = ['Aztekin', 'MouseAtlas', 'MouseHSP', 'MouseRetina',
+                         'PBMCbatchone+PBMCbatchtwo', 'BaronHuman+Segerstolpe']
         self.methods = ['Seurat_v4']
         self.orders = ['correction_first', 'selection_first']
         self.plot = True

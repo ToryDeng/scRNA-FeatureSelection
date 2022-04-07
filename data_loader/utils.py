@@ -97,6 +97,22 @@ def log_normalize(adata: ad.AnnData):
 
 
 def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnData:
+    """
+    sample the cells or genes from adata
+
+    Parameters
+    ----------
+    adata
+      the anndata object
+    sample_source
+      which dimension to sample from (cells or genes)
+    number
+      the number of cells or samples to sample
+    Returns
+    -------
+    adata
+     the sampled anndata
+    """
     if sample_source != '' and number != '':
         if sample_source == 'cells':
             adata = sc.pp.subsample(adata, n_obs=int(number), random_state=0, copy=True)
