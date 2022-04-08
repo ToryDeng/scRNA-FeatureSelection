@@ -64,7 +64,7 @@ def run_cell_classification(fs_methods: List[str]):
     for dataset_name in assign_cfg.intra_datasets if assign_cfg.is_intra else assign_cfg.inter_datasets:
         adata = load_data(dataset_name)  # load the whole dataset
         recorder.extend_record_table(adata)  # add new part of table to the existing table, or create new table
-        data_generator = yield_train_test_data(adata, assign_cfg)  # create a data generator
+        data_generator = yield_train_test_data(adata)  # create a data generator
         for i, (train_adata, test_adata) in enumerate(data_generator):  # fold / batch:  split the data
             for assign_method in assign_cfg.methods:
                 head(assign_method, i + 1)
@@ -79,7 +79,7 @@ def run_cell_classification(fs_methods: List[str]):
                         selected_train_adata = select_genes(train_adata, fs_method, n_genes, select_by_batch=False)
                         selected_test_adata = subset_adata(test_adata, selected_train_adata.var_names)
                         classify_cells(selected_train_adata, selected_test_adata)
-                        results = classification_metrics(test_adata)
+                        results = classification_metrics(selected_test_adata)
                         recorder.record(test_adata.uns['data_name'], n_genes, results, fs_method,
                                         n_fold=i + 1 if assign_cfg.is_intra else None)
         recorder.sink()

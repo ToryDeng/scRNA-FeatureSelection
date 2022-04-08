@@ -9,7 +9,7 @@ from scipy.sparse.csr import csr_matrix
 from sklearn.model_selection import StratifiedKFold
 
 from common_utils.utils import head
-from config import data_cfg, CellClassificationConfig
+from config import data_cfg, assign_cfg
 from data_loader.utils import standardize_adata, control_quality, sample_adata, store_markers, log_normalize, \
     set_rare_type, complexity, show_data_info
 
@@ -96,7 +96,7 @@ def load_data(data_name: str) -> ad.AnnData:
     return adata
 
 
-def yield_train_test_data(adata: ad.AnnData, config: CellClassificationConfig):
+def yield_train_test_data(adata: ad.AnnData):
     """
     For intra-dataset classification, this function yield (n_folds - 1) folds of data as training set, and the remaining
     fold as test set. For inter-dataset classification, this function yield a batch as training set, and another batch
@@ -106,15 +106,13 @@ def yield_train_test_data(adata: ad.AnnData, config: CellClassificationConfig):
     ----------
     adata
       the anndata object. For inter-dataset classification, it contains adata.obs['batch']
-    config
-      the configuration for cell classification
     Returns
     -------
     data_generator
       a generator that can generate train_data and test_data every time.
     """
-    if config.is_intra:
-        skf = StratifiedKFold(config.n_folds, random_state=config.random_seed, shuffle=True)
+    if assign_cfg.is_intra:
+        skf = StratifiedKFold(assign_cfg.n_folds, random_state=assign_cfg.random_seed, shuffle=True)
         for i, (train_idx, test_idx) in enumerate(skf.split(X=adata.X, y=adata.obs['celltype'].values)):
             train_data, test_data = adata[train_idx].copy(), adata[test_idx].copy()
             train_data.uns['fold'], test_data.uns['fold'] = i + 1, i + 1
