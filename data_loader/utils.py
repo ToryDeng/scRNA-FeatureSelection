@@ -11,8 +11,31 @@ import pandas as pd
 import scanpy as sc
 
 from common_utils.utils import HiddenPrints
-from config.datasets_config import data_cfg
-from config.experiments_config import base_cfg, assign_cfg
+from config import data_cfg, base_cfg
+
+
+def complexity(adata: ad.AnnData, use_raw: bool = False):
+    """
+    Compute the complexity of the dataset.
+
+    Parameters
+    ----------
+    adata
+      anndata object
+    use_raw
+      whether to use raw data
+    Returns
+    -------
+    complexity
+      the complexity of the dataset
+    """
+    if use_raw:
+        adata = adata.raw.to_adata()
+    all_centroids = pd.concat(
+        objs=[adata[adata.obs['celltype'] == t].to_df().mean(axis=0).rename(t) for t in adata.obs['celltype'].unique()],
+        axis=1).T
+    corr_mtx = np.corrcoef(all_centroids)
+    return np.mean([corr_mtx[i, j] for i, j in enumerate(np.argsort(corr_mtx)[:, -2])])
 
 
 def clean_var_names(gene_names: pd.Index) -> np.ndarray:
@@ -170,32 +193,37 @@ def store_markers(adata: ad.AnnData):
             adata.var['marker_weight'] = np.where(adata.var['is_marker'], adata.var['marker_weight'], 0)
 
 
-def set_rare_type(adata: ad.AnnData):
+def find_rare_cell_types(adata: ad.AnnData):
     cell_type_counts = adata.obs['celltype'].value_counts(ascending=True)
+    cell_type_ratio = cell_type_counts / adata.n_obs
+    rare_types = np.intersect1d(
+        cell_type_counts[cell_type_counts >= data_cfg.rare_number].index,
+        cell_type_ratio[cell_type_ratio <= data_cfg.rare_rate].index
+    )
+    return rare_types if rare_types is not None else None
+
+
+def set_rare_type(adata: ad.AnnData):
     if 'batch' not in adata.obs:
-        if cell_type_counts[0] >= assign_cfg.n_folds * 2:  # 10
-            rare_type = cell_type_counts.index[0]
-            print("Rare Cell Type:{:<15}     Rate:{:.2%}     Num:{}".format(
-                rare_type, cell_type_counts[rare_type] / adata.n_obs, cell_type_counts[0])
-            )
-        else:
-            rare_type = None
+        rare_types = find_rare_cell_types(adata)
+        rare_type = None if rare_types is None else rare_types[0]
     else:
         u_batches = adata.obs['batch'].unique()
-        bu_types = [adata[adata.obs['batch'] == b].obs['celltype'].unique() for b in u_batches]
-        inter_types = np.intersect1d(*bu_types) if len(bu_types) == 2 else reduce(np.intersect1d, bu_types)
-        try:
-            rare_type = cell_type_counts.index[np.isin(cell_type_counts.index.to_numpy(), inter_types)][0]
-            print("Rare Cell Type:{:<15}     Rate in the total dataset: {:.2%}     Num: {}".format(
-                rare_type, cell_type_counts[rare_type] / adata.n_obs, cell_type_counts[rare_type]
-            ))
-            for b in u_batches:
-                batch_mask = adata.obs['batch'] == b
-                batch_counts = adata[batch_mask].obs['celltype'].value_counts()
-                print("Rate in {}: {:.2%}     Num in {}: {}".format(
-                    b, batch_counts[rare_type] / batch_mask.sum(), b, batch_counts[rare_type]
-                ))
-        except IndexError:
-            rare_type = None
+        batch_rare_types = [find_rare_cell_types(adata[adata.obs['batch'] == b]) for b in u_batches]
+        inter_types = np.intersect1d(*batch_rare_types) if len(batch_rare_types) == 2 else reduce(np.intersect1d, batch_rare_types)
+        rare_type = None if inter_types is None else inter_types[0]
     if rare_type is not None:
         adata.uns['rare_type'] = rare_type
+
+
+def show_data_info(adata: ad.AnnData):
+    print(f"Dataset {adata.uns['data_name']} has {adata.n_obs} cells, {adata.n_vars} genes "
+          f"and {adata.obs['celltype'].unique().shape[0]} classes after filtering.")
+    if 'rare_type' in adata.uns:
+        print(f"Rare cell type (> {data_cfg.rare_number} cells and < "
+              f"{data_cfg.rare_rate * 100}% of all cells): {adata.uns['rare_type']}")
+    if 'batch' not in adata.obs:
+        print(f"Data complexity is {np.round(adata.uns['data_complexity'], 3)}.")
+    else:
+        ubatches = adata.obs['batch'].unique().categories.to_numpy()
+        print(f"Dataset contains {ubatches.shape[0]} batches: {ubatches}")

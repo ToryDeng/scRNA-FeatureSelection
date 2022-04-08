@@ -1,13 +1,13 @@
 import anndata as ad
-import scanpy as sc
 import bcubed
 import numpy as np
+import scanpy as sc
 import scib
 from harmonypy import compute_lisi
 from sklearn.metrics import classification_report, cohen_kappa_score, adjusted_rand_score, v_measure_score
 
 from common_utils.utils import HiddenPrints
-from config.experiments_config import BatchCorrectionConfig, CellClassificationConfig, CellClusteringConfig
+from config import BatchCorrectionConfig, assign_cfg, cluster_cfg
 
 
 def marker_discovery_rate(selected_adata: ad.AnnData, original_adata: ad.AnnData):
@@ -51,38 +51,37 @@ def correction_metrics(adata: ad.AnnData, config: BatchCorrectionConfig) -> dict
     return correction_result
 
 
-def classification_metrics(test_adata: ad.AnnData, config: CellClassificationConfig):
-    assert 'assign_label' in test_adata.obs, "'assign_label' not in adata.obs!"
+def classification_metrics(test_adata: ad.AnnData):
+    assert test_adata.obs.columns.str.endswith('_label').sum() >= 1, "Run at least once for certain classification algorithm!"
     classification_result = dict()
-
-    if 'f1_score' in config.metrics:
-        report = classification_report(test_adata.obs['celltype'], test_adata.obs['assign_label'], output_dict=True, zero_division='warn')
-        classification_result['f1_score'] = report['macro avg']['f1-score']
-        if 'rare_type' in test_adata.uns:
-            if test_adata.uns['rare_type'] not in report.keys():
-                raise RuntimeWarning(f"rare cell type {test_adata.uns['rare_type']} not in {report.keys()}!")
-            else:
-                classification_result['f1_rare'] = report[test_adata.uns['rare_type']]['f1-score']
-    if 'cohen_kappa' in config.metrics:
-        classification_result['cohen_kappa'] = cohen_kappa_score(test_adata.obs['celltype'], test_adata.obs['assign_label'])
+    for method in assign_cfg.methods:
+        per_method = dict()
+        labels_true, labels_pred = test_adata.obs['celltype'].values, test_adata.obs[f'{method}_label']
+        if 'f1' in assign_cfg.metrics:
+            report = classification_report(labels_true, labels_pred, output_dict=True, zero_division=0)
+            per_method['f1'] = report['macro avg']['f1-score']
+        if 'ck' in assign_cfg.metrics:
+            per_method['ck'] = cohen_kappa_score(labels_true, labels_pred)
+        classification_result[method] = per_method
     return classification_result
 
 
-def clustering_metrics(adata: ad.AnnData, clustering_method: str, config: CellClusteringConfig):
+def clustering_metrics(adata: ad.AnnData):
     assert adata.obs.columns.str.endswith('_1').sum() >= 1, "Run at least once for certain clustering algorithm!"
     clustering_result = dict()
-    clustering_labels = adata.obs.loc[:, adata.obs.columns.str.startswith(clustering_method)]
 
-    for run in range(1, config.methods[clustering_method] + 1):
-        labels_true, labels_pred = adata.obs['celltype'].values, clustering_labels[f'{clustering_method}_{run}']
-        if 'ARI' in config.metrics:
-            clustering_result[f'ARI_{run}'] = adjusted_rand_score(labels_true, labels_pred)
-        if 'V' in config.metrics:
-            clustering_result[f'V_{run}'] = v_measure_score(labels_true, labels_pred)
-        if 'bcubed' in config.metrics:
-            if 'rare_type' in adata.uns:
-                clustering_result[f'bcubed_{run}'] = BCubed_fbeta_score(adata, f'{clustering_method}_{run}', True)
-
+    for method, n_runs in cluster_cfg.methods.items():
+        per_method = dict()
+        for run in range(1, n_runs + 1):
+            labels_true, labels_pred = adata.obs['celltype'].values, adata.obs[f'{method}_{run}'].values
+            if 'ARI' in cluster_cfg.metrics:
+                per_method[f'ARI_{run}'] = adjusted_rand_score(labels_true, labels_pred)
+            if 'V' in cluster_cfg.metrics:
+                per_method[f'V_{run}'] = v_measure_score(labels_true, labels_pred)
+            if 'bcubed' in cluster_cfg.metrics:
+                if 'rare_type' in adata.uns:
+                    per_method[f'bcubed_{run}'] = BCubed_fbeta_score(adata, f'{method}_{run}', True)
+        clustering_result[method] = per_method
     return clustering_result
 
 

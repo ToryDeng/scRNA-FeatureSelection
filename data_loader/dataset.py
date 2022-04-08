@@ -8,11 +8,10 @@ import scanpy as sc
 from scipy.sparse.csr import csr_matrix
 from sklearn.model_selection import StratifiedKFold
 
-from common_utils.utils import head, complexity
-from config.datasets_config import data_cfg
-from config.experiments_config import CellClassificationConfig
+from common_utils.utils import head
+from config import data_cfg, CellClassificationConfig
 from data_loader.utils import standardize_adata, control_quality, sample_adata, store_markers, log_normalize, \
-    set_rare_type
+    set_rare_type, complexity, show_data_info
 
 
 def _load_single_data(data_name: str) -> ad.AnnData:
@@ -25,16 +24,6 @@ def _load_single_data(data_name: str) -> ad.AnnData:
     if not np.all(adata.X % 1 == 0):  # check raw counts
         raise ValueError(f"Dataset '{data_name}' may contain normalized data.")
     return adata
-
-
-def show_data_info(adata: ad.AnnData):
-    print(f"Dataset {adata.uns['data_name']} has {adata.n_obs} cells, {adata.n_vars} genes "
-          f"and {adata.obs['celltype'].unique().shape[0]} classes after filtering.")
-    if 'batch' not in adata.obs:
-        print(f"Data complexity is {np.round(adata.uns['data_complexity'], 3)}.")
-    else:
-        ubatches = adata.obs['batch'].unique().categories.to_numpy()
-        print(f"Dataset contains {ubatches.shape[0]} batches: {ubatches}")
 
 
 def _load_data(data_name: str) -> ad.AnnData:
@@ -102,7 +91,7 @@ def load_data(data_name: str) -> ad.AnnData:
             os.makedirs(file_dir)
         adata.write_h5ad(os.path.join(file_dir, file_name))
     adata.uns['data_name'] = data_name
-    adata.uns['data_complexity'] = complexity(adata, use_raw=False)  # use adata.X
+    adata.uns['data_complexity'] = complexity(adata, use_raw=True)  # use adata.X
     show_data_info(adata)
     return adata
 

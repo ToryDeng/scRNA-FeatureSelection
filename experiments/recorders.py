@@ -10,9 +10,8 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 
-from config.experiments_config import MarkerDiscoveryConfig, CellClassificationConfig, CellClusteringConfig, \
-    BasicExperimentConfig, ComputationTimeConfig, BatchCorrectionConfig
-from config.methods_config import method_cfg
+from config import MarkerDiscoveryConfig, CellClassificationConfig, CellClusteringConfig, \
+    BasicExperimentConfig, ComputationTimeConfig, BatchCorrectionConfig, method_cfg
 
 
 class BasicExperimentRecorder:
@@ -68,8 +67,8 @@ class BasicExperimentRecorder:
         # sink tables
         for name, attr in self.__dict__.items():
             if isinstance(attr, pd.DataFrame):
-                attr.rename(columns=method_cfg.formal_names, inplace=True)
-                attr.to_excel(os.path.join(os.path.join(self.config.sink_dir, 'xlsx', f'{name}.xlsx')))
+                df_with_formal_names = attr.rename(columns=method_cfg.formal_names, inplace=False)
+                df_with_formal_names.to_excel(os.path.join(os.path.join(self.config.sink_dir, 'xlsx', f'{name}.xlsx')))
         print(f"{datetime.datetime.now()}: Finished and saved record to {self.config.sink_dir}\n\n\n")
 
 
@@ -130,21 +129,24 @@ class AssignRecorder(BasicExperimentRecorder):
         else:
             pass
 
-    def record(self, dataset: str, n_genes: Union[int, str], method: str, metrics: dict, fs_method: str = None, n_fold: int = None):
+    def record(self, dataset: str, n_genes: Union[int, str], metrics: dict, fs_method: str = None, n_fold: int = None):
+        # {'singleR':{'f1':, 'ck':}}
         if n_fold is not None:  # intra-dataset classification
-            for metric, value in metrics.items():
-                if metric in self.config.metrics:
-                    if isinstance(n_genes, str):  # all genes
-                        self.classification.loc[(dataset, n_fold, n_genes, method, metric), :] = value
-                    else:
-                        self.classification.loc[(dataset, n_fold, n_genes, method, metric), fs_method] = value
+            for method, per_method_metrics in metrics.items():
+                for metric, value in per_method_metrics.items():
+                    if metric in self.config.metrics:
+                        if isinstance(n_genes, str):  # all genes
+                            self.classification.loc[(dataset, n_fold, n_genes, method, metric), :] = value
+                        else:
+                            self.classification.loc[(dataset, n_fold, n_genes, method, metric), fs_method] = value
         else:  # inter-dataset classification
-            for metric, value in metrics.items():
-                if metric in self.config.metrics:
-                    if isinstance(n_genes, str):  # all genes
-                        self.classification.loc[(dataset, n_genes, method, metric), :] = value
-                    else:
-                        self.classification.loc[(dataset, n_genes, method, metric), fs_method] = value
+            for method, per_method_metrics in metrics.items():
+                for metric, value in per_method_metrics.items():
+                    if metric in self.config.metrics:
+                        if isinstance(n_genes, str):  # all genes
+                            self.classification.loc[(dataset, n_genes, method, metric), :] = value
+                        else:
+                            self.classification.loc[(dataset, n_genes, method, metric), fs_method] = value
 
 
 class ClusterRecorder(BasicExperimentRecorder):
@@ -171,15 +173,16 @@ class ClusterRecorder(BasicExperimentRecorder):
                     raise ValueError(f"One or more base methods in {fs_method}"
                                      f" are not in the list of unsupervised methods in method config")
 
-    def record(self, dataset: str, n_genes: Union[int, str], method: str, metrics: dict, fs_method: str = None):
-        self.extend_record_table(dataset, n_genes, method)
-        for metric_run, value in metrics.items():
-            metric, run = metric_run.split('_')
-            if metric in self.config.metrics:
-                if isinstance(n_genes, str):  # all genes
-                    self.clustering.loc[(dataset, n_genes, method, int(run), metric), :] = value
-                else:
-                    self.clustering.loc[(dataset, n_genes, method, int(run), metric), fs_method] = value
+    def record(self, dataset: str, n_genes: Union[int, str], metrics: dict, fs_method: str = None):
+        for method, per_method_metrics in metrics.items():
+            self.extend_record_table(dataset, n_genes, method)
+            for metric_run, value in per_method_metrics.items():
+                metric, run = metric_run.split('_')
+                if metric in self.config.metrics:
+                    if isinstance(n_genes, str):  # all genes
+                        self.clustering.loc[(dataset, n_genes, method, int(run), metric), :] = value
+                    else:
+                        self.clustering.loc[(dataset, n_genes, method, int(run), metric), fs_method] = value
 
 
 def init_recorder(fs_methods: List[str], config: BasicExperimentConfig):

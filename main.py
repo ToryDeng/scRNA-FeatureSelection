@@ -1,4 +1,4 @@
-from experiments.run_experiments import run_cell_clustering
+from experiments import *
 
 
-run_cell_clustering(['var', 'feast'])
+run_cell_classification(['var', 'rf'])

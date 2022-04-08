@@ -25,7 +25,7 @@ from xgboost import XGBClassifier
 
 from common_utils.utils import HiddenPrints
 # configurations
-from config.experiments_config import base_cfg
+from config import base_cfg
 # scGeneFit
 from selection import scgenefit
 # fisher score
@@ -145,7 +145,7 @@ def select_genes_by_batch(adata: ad.AnnData,
                           ):
     if use_saved and is_saved(adata, method, n_selected_genes):
         final_result = load_genes(adata, method, n_selected_genes)
-        print(f'When selecting {n_selected_genes} genes: using previously saved genes and importances...')
+        print(f'{n_selected_genes} genes are selected by {method} using previously saved genes and importances...')
     else:  # do not use saved genes or genes have not been saved
         try:
             if '+' in method:

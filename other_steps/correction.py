@@ -9,7 +9,7 @@ from rpy2.robjects import r, globalenv
 from rpy2.robjects.packages import importr
 from scanpy.preprocessing._utils import _get_mean_var
 
-from config.experiments_config import batch_cfg
+from config import batch_cfg
 
 
 def correct_batch_effect(adata: ad.AnnData, method: Literal['Seurat_v4']) -> ad.AnnData:

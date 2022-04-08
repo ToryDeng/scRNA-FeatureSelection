@@ -12,30 +12,6 @@ matplotlib.use('agg')
 import scanpy as sc
 
 
-def complexity(adata: ad.AnnData, use_raw: bool = False):
-    """
-    Compute the complexity of the dataset.
-
-    Parameters
-    ----------
-    adata
-      anndata object
-    use_raw
-      whether to use raw data
-    Returns
-    -------
-    complexity
-      the complexity of the dataset
-    """
-    if use_raw:
-        adata = adata.raw.to_adata()
-    all_centroids = pd.concat(
-        objs=[adata[adata.obs.celltype == t].to_df().mean(axis=0).rename(t) for t in adata.obs.celltype.unique()],
-        axis=1).T
-    corr_mtx = np.corrcoef(all_centroids)
-    return np.mean([corr_mtx[i, j] for i, j in enumerate(np.argsort(corr_mtx)[:, -2])])
-
-
 def head(name: str, n_times: int = None, head_len=65):
     """
     formatted printing

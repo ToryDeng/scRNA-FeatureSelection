@@ -5,7 +5,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 
-from config.datasets_config import data_cfg
+from config import data_cfg
 
 
 def save_genes(adata: ad.AnnData, method: str, selected_df: pd.DataFrame):

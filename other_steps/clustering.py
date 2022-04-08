@@ -1,5 +1,4 @@
 import traceback
-from typing import Literal
 
 import anndata as ad
 import anndata2ri
@@ -11,12 +10,10 @@ from rpy2.robjects import r, pandas2ri, globalenv
 from rpy2.robjects.packages import importr
 
 from common_utils.utils import HiddenPrints, head
-from config.experiments_config import cluster_cfg
+from config import cluster_cfg
 
 
-def cluster_cells(adata: ad.AnnData,
-                  method: Literal['SHARP', 'Seurat_v4', 'SC3', 'SC3s'],
-                  n_runs: int = 1):
+def cluster_cells(adata: ad.AnnData):
     """
     cluster cells in adata. the clustering results are stored in adata.obs, with names of columns: {clustering_method}_{run}
 
@@ -24,32 +21,28 @@ def cluster_cells(adata: ad.AnnData,
     ----------
     adata
       the anndata to be clustered
-    method
-     the clustering method
-    n_runs
-     number of runs
     Returns
     -------
     None
     """
-    print(f"{method} clustering starts. {adata.n_obs} cells and {adata.n_vars} genes in data...")
-    for run in range(1, n_runs + 1):
-        head(method, run)
+    for method, n_runs in cluster_cfg.methods.items():
         try:
-            if method == 'SHARP':
-                cluster_labels = SHARP_clustering(adata, random_seed=cluster_cfg.random_seed + run)
-            elif method == 'Seurat_v4':
-                if n_runs != 1:
-                    raise RuntimeWarning("Seurat v4 clustering is not a random algorithm...")
-                cluster_labels = Seurat_v4_clustering(adata)
-            elif method == 'SC3':
-                cluster_labels = SC3_clustering(adata, random_seed=cluster_cfg.random_seed + run)
-            elif method == 'SC3s':
-                cluster_labels = SC3s_clustering(adata, random_seed=cluster_cfg.random_seed + run)
-            else:
-                raise NotImplementedError(f"{method} has not been implemented!")
-            adata.obs[f"{method}_{run}"] = cluster_labels
-            print(f"clustering labels have been stored in adata.obs['{method}_{run}']")
+            print(f"{method} clustering starts. {adata.n_obs} cells and {adata.n_vars} genes in data...")
+            for run in range(1, n_runs + 1):
+                head(method, run)
+                if method == 'SHARP':
+                    cluster_labels = SHARP_clustering(adata, random_seed=cluster_cfg.random_seed + run)
+                elif method == 'Seurat_v4':
+                    if n_runs != 1:
+                        raise RuntimeWarning("Seurat v4 clustering is not a random algorithm...")
+                    cluster_labels = Seurat_v4_clustering(adata)
+                elif method == 'SC3':
+                    cluster_labels = SC3_clustering(adata, random_seed=cluster_cfg.random_seed + run)
+                elif method == 'SC3s':
+                    cluster_labels = SC3s_clustering(adata, random_seed=cluster_cfg.random_seed + run)
+                else:
+                    raise NotImplementedError(f"{method} has not been implemented!")
+                adata.obs[f'{method}_{run}'] = cluster_labels
         except:
             print(f"{method} failed.")
             traceback.print_exc()
