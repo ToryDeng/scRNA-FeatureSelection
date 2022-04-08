@@ -31,7 +31,7 @@ class CellClusteringConfig(BasicExperimentConfig):
                          'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue',
                          'Alles', 'Ariss', 'ToschesLizard', 'PBMCbatchone', 'PBMCbatchtwo']
 
-        self.methods = {'SC3s': 1}  # clustering_method: number of runs , 'Seurat_v4': 1
+        self.methods = {'SC3s': 1, 'Seurat_v4': 1}  # clustering_method: number of runs
         self.metrics = ['ARI', 'V', 'bcubed']
 
 

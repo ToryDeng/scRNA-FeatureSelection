@@ -8,7 +8,7 @@ class MethodConfig:
             'deviance': 'Deviance',
             'm3drop': 'M3Drop',
             'scmap': 'scmap',
-            'rf': 'RF',
+            'rf': 'Random Forest',
             'lgb': 'LightGBM',
             'xgb': 'XGBoost',
             'nsc': 'NSC',
@@ -16,7 +16,7 @@ class MethodConfig:
             'scGeneFit': 'scGeneFit',
             'cellranger': 'CellRanger',
             'feast': 'FEAST',
-            'rf+fisher_score': 'RF+\nFisher Score',
+            'rf+fisher_score': 'Random Forest+\nFisher Score',
             'seurat_v3+deviance': 'Seurat v3+\nDeviance'
         }
         self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger']
