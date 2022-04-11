@@ -1,42 +1,37 @@
 import datetime
 import traceback
-# ensemble gene selection
+import sys
 from collections import defaultdict, Counter
 from typing import Optional, List
 
 import anndata as ad
-# execute R methods
 import anndata2ri
-# var, cv2
 import numpy as np
 import pandas as pd
-# seurat
 import scanpy as sc
 from lightgbm import LGBMClassifier
 from rpy2.robjects import r, globalenv
 from rpy2.robjects.packages import importr
-# tree models
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
-# nearest shrunken centroid
 from sklearn.neighbors import NearestCentroid
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
 from common_utils.utils import HiddenPrints
-# configurations
 from config import base_cfg
-# scGeneFit
 from selection import scgenefit
-# fisher score
 from selection.fisher_score import fisher_score
 from selection.nearest_centroid import nearest_centroid_select
 from selection.utils import is_saved, load_genes, save_genes, subset_adata
 
+sys.path.append(r"/volume1/home/tdeng/SingleCell/GeneClust/")
+from GeneClust import select
+
 
 def single_select_by_batch(adata: ad.AnnData,
                            method: str,
-                           n_selected_genes: int = base_cfg.n_genes[-1]):
+                           n_selected_genes: int = base_cfg.n_genes[-1]) -> pd.DataFrame:
     """
     Calculate feature importances for each gene, and then rank and select genes.
 
@@ -48,7 +43,9 @@ def single_select_by_batch(adata: ad.AnnData,
 
     Returns
     -------
-
+    selected_genes_df
+      A dataframe with 1 or 2 columns. The first column with name 'Gene' contains the selected genes. The second column
+      (if exists) with name 'Importance' contains gene importances.
     """
     if method == 'rf':
         selected_genes_df = random_forest_compute_importance(adata)
@@ -82,6 +79,10 @@ def single_select_by_batch(adata: ad.AnnData,
         selected_genes_df = scmap_compute_importance(adata)
     elif method == 'deviance':
         selected_genes_df = deviance_compute_importance(adata)
+    elif method == 'geneclust':
+        params = {'n_selected_genes': n_selected_genes, 'dr_method': 'pca', 'n_comps': 50, 'similarity': 'pearson',
+                  'n_clusters': 200, 'return_genes': True}
+        selected_genes_df = select(adata, **params)
     else:
         raise NotImplementedError(f"No implementation of {method}!")
 
@@ -179,7 +180,8 @@ def select_genes(adata: ad.AnnData,
             else:
                 batch_adata.uns['data_name'] = ubatch
 
-            print(f"{datetime.datetime.now()}: Start to apply {method} on batch {ubatch}, batch shape: {batch_adata.shape}.")
+            print(
+                f"{datetime.datetime.now()}: Start to apply {method} on batch {ubatch}, batch shape: {batch_adata.shape}.")
             batch_result = select_genes_by_batch(batch_adata, method, n_selected_genes, use_saved)
             if batch_result is None:
                 raise RuntimeWarning(f"batch {ubatch} is not used.")

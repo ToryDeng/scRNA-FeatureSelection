@@ -1,4 +1,5 @@
 import traceback
+import datetime
 
 import anndata as ad
 import anndata2ri
@@ -27,7 +28,7 @@ def cluster_cells(adata: ad.AnnData):
     """
     for method, n_runs in cluster_cfg.methods.items():
         try:
-            print(f"{method} clustering starts. {adata.n_obs} cells and {adata.n_vars} genes in data...")
+            print(f"{datetime.datetime.now()}: {method} clustering starts. {adata.n_obs} cells and {adata.n_vars} genes in data...")
             for run in range(1, n_runs + 1):
                 head(method, run)
                 if method == 'SHARP':

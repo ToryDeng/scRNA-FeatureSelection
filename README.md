@@ -93,6 +93,8 @@ run_cell_classification(fs_methods=['lgb+rf'])
 All the records will be stored in the directory `records/`. The recorders are in `records/pkl/`, and the tables are in `records/xlsx/`.
 
 ## Evaluating new feature selection methods step by step
+Here we present an easy way to evaluate new feature selection methods on all datasets we used. if you just
+want to test on a few datasets, please check the [notebook](https://github.com/ToryDeng/scRNA-FeatureSelection/blob/main/feature_selection.ipynb) for examples.
 1. Add new methods to the function `single_select_by_batch()` in `selection/methods.py`:
    ```python
    elif method == 'deviance':

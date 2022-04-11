@@ -1,4 +1,5 @@
 import traceback
+import datetime
 
 import anndata as ad
 import anndata2ri
@@ -28,7 +29,7 @@ def classify_cells(train_adata: ad.AnnData, test_adata: ad.AnnData):
 
     try:
         for method in assign_cfg.methods:
-            print(f"{method} starts. {train_adata.n_obs} cells and {train_adata.n_vars} genes in train data; "
+            print(f"{datetime.datetime.now()}: {method} starts. {train_adata.n_obs} cells and {train_adata.n_vars} genes in train data; "
                   f"{test_adata.n_obs} cells and {test_adata.n_vars} genes in test data...")
             if method == 'SingleR':
                 assign_labels = SingleR(train_adata, test_adata)

@@ -84,11 +84,14 @@ def subset_adata(adata: ad.AnnData, selected_genes: Union[np.ndarray, pd.Index],
     if inplace:
         if adata.raw is not None:
             adata.raw = adata.raw[:, gene_mask].to_adata()
+            if adata.raw.shape[1] != selected_genes.shape[0]:
+                raise RuntimeError(f"{adata.raw.shape[1]} genes in raw data were selected, "
+                                   f"not {selected_genes.shape[0]} genes. Please check the gene names.")
         adata._inplace_subset_var(selected_genes)
-        if adata.raw.shape[1] != selected_genes.shape[0] or adata.shape[1] != selected_genes.shape[0]:
+        if adata.shape[1] != selected_genes.shape[0]:
             raise RuntimeError(
-                f"{adata.raw.shape[1]} genes in raw data and {adata.shape[1]} in norm data were selected,"
-                f" not {selected_genes.shape[0]} genes. Please check the gene names."
+                f"{adata.shape[1]} in norm data were selected, "
+                f"not {selected_genes.shape[0]} genes. Please check the gene names."
             )
     else:
         copied_adata = adata.copy()

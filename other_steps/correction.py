@@ -1,4 +1,5 @@
 import traceback
+import datetime
 from typing import Literal
 
 import anndata as ad
@@ -13,7 +14,7 @@ from config import batch_cfg
 
 
 def correct_batch_effect(adata: ad.AnnData, method: Literal['Seurat_v4']) -> ad.AnnData:
-    print(f"{method} correction starts.")
+    print(f"{datetime.datetime.now()}: {method} correction starts.")
     try:
         if method == 'Seurat_v4':
             corrected = Seurat_v4_correct(adata)

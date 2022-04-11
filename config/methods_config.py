@@ -17,9 +17,11 @@ class MethodConfig:
             'cellranger': 'CellRanger',
             'feast': 'FEAST',
             'rf+fisher_score': 'Random Forest+\nFisher Score',
-            'seurat_v3+deviance': 'Seurat v3+\nDeviance'
+            'seurat_v3+deviance': 'Seurat v3+\nDeviance',
+            'geneclust': 'GeneClust'
         }
-        self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger']
+        self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger',
+                             'geneclust']
         self.supervised = ['rf', 'lgb', 'xgb', 'nsc', 'fisher_score', 'scGeneFit']
 
 
