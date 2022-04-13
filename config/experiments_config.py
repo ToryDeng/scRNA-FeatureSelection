@@ -27,9 +27,10 @@ class CellClassificationConfig(BasicExperimentConfig):
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['BaronHuman', 'Segerstolpe', 'Zilionis', 'Marques', 'Darmanis', 'Guo', 'QuakeHeart',
-                         'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue',
-                         'Alles', 'Ariss', 'ToschesLizard', 'PBMCbatchone', 'PBMCbatchtwo']
+        self.datasets = ['Zilionis', 'Marques', 'Darmanis', 'Guo', 'QuakeHeart', 'PBMCbatchone', 'PBMCbatchtwo']
+        # 'BaronHuman', 'Segerstolpe',
+        #                          'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue',
+        #                          'Alles', 'Ariss', 'ToschesLizard',
 
         self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs  # , 'SC3s': 1
         self.metrics = ['ARI', 'V', 'bcubed']

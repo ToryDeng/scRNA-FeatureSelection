@@ -186,6 +186,7 @@ class ClusterRecorder(BasicExperimentRecorder):
 
 
 def init_recorder(fs_methods: List[str], config: BasicExperimentConfig):
+    print('Process id : %d' % os.getpid())
     if isinstance(config, MarkerDiscoveryConfig):
         recorder = MarkerRecorder(fs_methods, config)
     elif isinstance(config, CellClassificationConfig):

@@ -70,7 +70,7 @@ def single_select_by_batch(adata: ad.AnnData,
     elif method == 'nsc':
         selected_genes_df = nearest_shrunken_centroid_compute_importance(adata)
     elif method == 'feast':
-        selected_genes_df = FEAST_compute_importance(adata)
+        selected_genes_df = FEAST(adata)
     elif method == 'random':
         selected_genes_df = random_compute_importance(adata)
     elif method == 'm3drop':
@@ -167,6 +167,7 @@ def select_genes(adata: ad.AnnData,
                  inplace: bool = False,
                  use_saved: bool = True,
                  select_by_batch=True) -> Optional[ad.AnnData]:
+    print(f'{method} starts to select {n_selected_genes} genes...')
     if 'batch' in adata.obs and select_by_batch:
         # calculate feature importances
         ubatches = adata.obs['batch'].unique().categories.to_numpy()
@@ -296,7 +297,7 @@ def random_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
 
 
 # R methods
-def FEAST_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def FEAST(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     """
     Select features by FEAST. The input anndata object contains norm and raw data. The raw data is normalized in R.
 
@@ -304,28 +305,26 @@ def FEAST_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     ----------
     adata :
         anndata object.
-
     Returns
     -------
-    Genes and their importances.
+    A 1-column dataframe. The sole column contains genes sorted according to their F scores.
+    The top genes are the most important.
     """
     try:
         with HiddenPrints():
             anndata2ri.activate()
             importr('FEAST')
-            importr('doParallel')
             raw_adata = adata.raw.to_adata()
             globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
             r("""
             Y <- process_Y(assay(sce, 'X'), thre = 2)
             n_classes <- dim(unique(colData(sce)['celltype']))[1]
             rm(sce)
-            con_res <- Consensus(Y, k = n_classes)
-            F_res <- cal_F2(Y, con_res$cluster)
+            idxs = FEAST_fast(Y, k = n_classes)
             """)
-            result = r("data.frame(Gene=rownames(Y), F_scores=F_res$F_scores)")
+            result = r("data.frame(Gene=rownames(Y)[idxs])")
             anndata2ri.deactivate()
-            return result
+        return result
     except:
         traceback.print_exc()
 

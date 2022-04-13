@@ -200,7 +200,7 @@ def find_rare_cell_types(adata: ad.AnnData):
         cell_type_counts[cell_type_counts >= data_cfg.rare_number].index,
         cell_type_ratio[cell_type_ratio <= data_cfg.rare_rate].index
     )
-    return rare_types if rare_types is not None else None
+    return rare_types if rare_types.size != 0 else None
 
 
 def set_rare_type(adata: ad.AnnData):

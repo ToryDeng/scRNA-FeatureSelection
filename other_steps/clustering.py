@@ -102,7 +102,7 @@ def Seurat_v4_clustering(adata: ad.AnnData):
         importr('doParallel')
         globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
         r("""
-        options(future.globals.maxSize= 50 * 1024 ^ 3)
+        options(future.globals.maxSize= Inf)
         plan("multicore", workers = 6)
         as(sce, 'SingleCellExperiment')
         seuset <- as.Seurat(sce, counts='X', data=NULL)
