@@ -93,10 +93,12 @@ def run_cell_clustering(fs_methods: List[str]):
         cluster_cells(adata)
         baseline_results = clustering_metrics(adata)
         recorder.record(dataset_name, 'AllGenes', baseline_results)
+        print(recorder.clustering)
         for fs_method in fs_methods:
             for n_genes in cluster_cfg.n_genes:
                 selected_adata = select_genes(adata, fs_method, n_genes)
                 cluster_cells(selected_adata)
                 results = clustering_metrics(selected_adata)
                 recorder.record(dataset_name, n_genes, results, fs_method)
+                print(recorder.clustering)
         recorder.sink()  # sink every dataset

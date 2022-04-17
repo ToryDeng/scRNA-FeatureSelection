@@ -17,10 +17,10 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import NearestCentroid
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
+from scGeneFit.functions import *
 
 from common_utils.utils import HiddenPrints
 from config import base_cfg
-from selection import scgenefit
 from selection.fisher_score import fisher_score
 from selection.nearest_centroid import nearest_centroid_select
 from selection.utils import is_saved, load_genes, save_genes, subset_adata
@@ -64,7 +64,7 @@ def single_select_by_batch(adata: ad.AnnData,
     elif method == 'cv2':
         selected_genes_df = cv2_compute_importance(adata)
     elif method == 'scGeneFit':
-        selected_genes_df = scGeneFit_compute_importance(adata)
+        selected_genes_df = scGeneFit(adata, n_selected_genes)
     elif method == 'fisher_score':
         selected_genes_df = fisher_score_compute_importance(adata)
     elif method == 'nsc':
@@ -80,8 +80,8 @@ def single_select_by_batch(adata: ad.AnnData,
     elif method == 'deviance':
         selected_genes_df = deviance_compute_importance(adata)
     elif method == 'geneclust':
-        params = {'n_selected_genes': n_selected_genes, 'dr_method': 'pca', 'n_comps': 50, 'similarity': 'pearson',
-                  'n_clusters': 200, 'return_genes': True}
+        params = {'n_selected_genes': n_selected_genes, 'dr_method': 'glm-pca', 'n_comps': 50, 'similarity': 'spearman',
+                  'clustering': 'gmm', 'n_clusters': 200, 'in_cluster_score': 'm3drop', 'return_genes': True}
         selected_genes_df = select(adata, **params)
     else:
         raise NotImplementedError(f"No implementation of {method}!")
@@ -271,10 +271,9 @@ def cv2_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.square(std / mean)})
 
 
-def scGeneFit_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
-    y = adata.obs['celltype'].values
-    all_genes_importamces = scgenefit.get_importance(adata.X, y, base_cfg.n_genes[-1], verbose=False)
-    return pd.DataFrame({'Gene': adata.var_names, 'Importance': all_genes_importamces})
+def scGeneFit(adata: ad.AnnData, n_selected_genes: int) -> Optional[pd.DataFrame]:
+    markers = get_markers(adata.X, adata.obs['celltype'].values, n_selected_genes)
+    return pd.DataFrame({'Gene': adata.var_names[markers]})
 
 
 def fisher_score_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
@@ -336,10 +335,11 @@ def M3Drop_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     Parameters
     ----------
     adata
-        anndata object.
+      anndata object.
     Returns
     -------
-
+    result
+      A dataframe. The first column contains gene names, and the second column contains 1 - p.value.
     """
     try:
         with HiddenPrints():
@@ -352,7 +352,8 @@ def M3Drop_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
             DE_genes <- M3DropFeatureSelection(norm, mt_method="fdr", mt_threshold=1, suppress.plot = TRUE)
             """)
             result = r("DE_genes").drop(columns=['effect.size', 'q.value'])
-            result['p.value'] = 1 - result['p.value']
+            result['Importance'] = 1 - result['p.value']
+            result.drop(columns=['p.value'], inplace=True)
             anndata2ri.deactivate()
             return result
     except:

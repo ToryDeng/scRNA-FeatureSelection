@@ -8,7 +8,7 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 ├─cache
 │  │  
 │  ├─geneData       # store selected genes
-│  └─processedData  # store processed datasets
+│  └─preprocessedData  # store preprocessed datasets
 │                   
 ├─common_utils
 │      utils.py           #  common utils

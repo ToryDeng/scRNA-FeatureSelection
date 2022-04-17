@@ -10,7 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 
 from common_utils.utils import head
 from config import data_cfg, assign_cfg
-from data_loader.utils import standardize_adata, control_quality, sample_adata, store_markers, log_normalize, \
+from data_loader.utils import make_name_consistent, control_quality, sample_adata, store_markers, log_normalize, \
     set_rare_type, complexity, show_data_info
 
 
@@ -42,7 +42,7 @@ def _load_data(data_name: str) -> ad.AnnData:
     if '+' not in data_name:
         dataset, number, sample_from = re.match(r"([a-zA-Z]*)([0-9]*)([a-zA-Z]*)?", data_name).groups()
         adata = _load_single_data(dataset)
-        standardize_adata(adata)
+        make_name_consistent(adata)
         if dataset == 'Vento':  # at least 2 samples are in dataset, for computation time test
             adata = adata[adata.obs['celltype'].isin(adata.obs['celltype'].value_counts().index[:12].to_numpy()), :]
         # quality control
@@ -79,10 +79,10 @@ def load_data(data_name: str) -> ad.AnnData:
       anndata object with raw_data, norm_data and markers in data, or the concatenated batch data
     """
     file_name = data_name + '.h5ad'
-    file_dir = os.path.join(data_cfg.cache_path, 'processedData')
+    file_dir = os.path.join(data_cfg.cache_path, 'preprocessedData')
 
     if os.path.exists(os.path.join(file_dir, file_name)):
-        head(f"Loading processed {data_name} dataset", head_len=100)
+        head(f"Loading preprocessed {data_name} dataset", head_len=100)
         adata = sc.read_h5ad(os.path.join(file_dir, file_name))
     else:
         head(f"Loading original {data_name} dataset", head_len=100)

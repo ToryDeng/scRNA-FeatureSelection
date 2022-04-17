@@ -44,7 +44,7 @@ def clean_var_names(gene_names: pd.Index) -> np.ndarray:
     return vreplace(gene_names.to_numpy())
 
 
-def standardize_adata(adata: ad.AnnData):
+def make_name_consistent(adata: ad.AnnData):
     """
     rename the columns in adata.obs and make obs and var names unique.
     Parameters
@@ -108,8 +108,9 @@ def log_normalize(adata: ad.AnnData):
     """
     #
     sc.pp.normalize_total(adata, target_sum=base_cfg.scale_factor, inplace=True, key_added='counts_per_cell')
-    adata.layers['normalized'] = adata.X
+    adata.layers['normalized'] = adata.X.copy()
     sc.pp.log1p(adata, base=e)
+    print(adata.layers['normalized'][adata.layers['normalized'] < 0])
     if 'batch' in adata.obs:
         print('scaling data for each batch...')
         for batch in adata.obs['batch'].unique():
@@ -117,6 +118,7 @@ def log_normalize(adata: ad.AnnData):
             adata.X[batch_mask, :] = sc.pp.scale(adata.X[batch_mask, :], max_value=10, copy=True)
     else:
         sc.pp.scale(adata, max_value=10, copy=False)
+        print(adata.layers['normalized'][adata.layers['normalized'] < 0])
 
 
 def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnData:

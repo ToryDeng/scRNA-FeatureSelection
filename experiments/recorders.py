@@ -67,7 +67,7 @@ class BasicExperimentRecorder:
         # sink tables
         for name, attr in self.__dict__.items():
             if isinstance(attr, pd.DataFrame):
-                df_with_formal_names = attr.rename(columns=method_cfg.formal_names, inplace=False)
+                df_with_formal_names = attr.rename(columns=method_cfg.formal_names, inplace=False).sort_index()
                 df_with_formal_names.to_excel(os.path.join(os.path.join(self.config.sink_dir, 'xlsx', f'{name}.xlsx')))
         print(f"{datetime.datetime.now()}: Finished and saved record to {self.config.sink_dir}\n\n\n")
 

@@ -2,7 +2,7 @@ class BasicExperimentConfig:
     def __init__(self):
         self.random_seed = 2022
         self.scale_factor = 1e4  # normalization
-        self.ensemble_mode = 'importance_sum'  # ensemble selection
+        self.ensemble_mode = 'count_sum'  # ensemble selection
         self.n_genes = [500, 1000, 1500, 2000]  # selected genes
         self.sink_dir = 'records/'
 
@@ -27,10 +27,11 @@ class CellClassificationConfig(BasicExperimentConfig):
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['Zilionis', 'Marques', 'Darmanis', 'Guo', 'QuakeHeart', 'PBMCbatchone', 'PBMCbatchtwo']
-        # 'BaronHuman', 'Segerstolpe',
-        #                          'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue',
-        #                          'Alles', 'Ariss', 'ToschesLizard',
+        self.datasets = ['PBMCbatchone', 'PBMCbatchtwo']
+        # 'BaronHuman', 'Segerstolpe', 'Zilionis', 'Marques', 'Darmanis', 'Guo', 'QuakeHeart',
+        # 'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue',
+        # 'Alles', 'Ariss', 'ToschesLizard',
+
 
         self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs  # , 'SC3s': 1
         self.metrics = ['ARI', 'V', 'bcubed']
