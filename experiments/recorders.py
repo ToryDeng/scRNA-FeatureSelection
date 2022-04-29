@@ -125,7 +125,8 @@ class AssignRecorder(BasicExperimentRecorder):
                 datasets, self.config.n_genes + ['AllGenes'], self.config.methods, self.config.metrics,
                 fs_methods=self.fs_methods
             )
-            self.classification = self.classification.append(part).sort_index() if hasattr(self, 'classification') else part
+
+            self.classification = pd.concat([self.classification, part]).sort_index() if hasattr(self, 'classification') else part
         else:
             pass
 
@@ -161,7 +162,7 @@ class ClusterRecorder(BasicExperimentRecorder):
             dataset, n_genes, clustering_method, range(1, self.config.methods[clustering_method]), self.config.metrics,
             fs_methods=self.fs_methods
         )
-        self.clustering = self.clustering.append(part).sort_index() if hasattr(self, 'clustering') else part
+        self.clustering = pd.concat([self.clustering, part]).sort_index() if hasattr(self, 'clustering') else part
 
     def __check_fs_methods_all_unsupervised(self):
         for fs_method in self.fs_methods:

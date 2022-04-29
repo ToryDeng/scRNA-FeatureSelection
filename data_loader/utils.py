@@ -40,7 +40,7 @@ def complexity(adata: ad.AnnData, use_raw: bool = False):
 
 def clean_var_names(gene_names: pd.Index) -> np.ndarray:
     regex = re.compile(pattern='[-_:+()|]')
-    vreplace = np.vectorize(lambda x: regex.sub('.', x), otypes=[np.str])
+    vreplace = np.vectorize(lambda x: regex.sub('.', x), otypes=[str])
     return vreplace(gene_names.to_numpy())
 
 
@@ -67,8 +67,8 @@ def make_name_consistent(adata: ad.AnnData):
         adata.obs['celltype'].replace(to_replace, replaced, inplace=True)
     # standardize cell types
     regex = re.compile(pattern="[- +']")
-    vreplace = np.vectorize(lambda x: regex.sub('.', str(x)), otypes=[np.str])
-    vladd = np.vectorize(lambda x: 'X' + x if x[0].isdigit() else x, otypes=[np.str])
+    vreplace = np.vectorize(lambda x: regex.sub('.', str(x)), otypes=[str])
+    vladd = np.vectorize(lambda x: 'X' + x if x[0].isdigit() else x, otypes=[str])
     adata.obs['celltype'] = pd.Categorical(vladd(vreplace(adata.obs['celltype'].values)))
     # categorize batch column
     if 'batch' in adata.obs and not isinstance(adata.obs['batch'], pd.Categorical):
@@ -85,6 +85,7 @@ def control_quality(adata: ad.AnnData) -> ad.AnnData:
     adata.var['SYMBOL'] = adata.var_names
     with HiddenPrints():
         min_genes, min_cells, min_counts, n_genes, percent_mito, max_counts = bc.pp.valOutlier(adata)
+        min_cells = 1 if min_cells == 0 else min_cells
         # filtering with thresholds of gene and cell counts
         adata = bc.st.filtering_cells_genes_min(adata, min_cells, min_genes, min_counts)
         # filtering with thresholds of proportion of mitochondrial genes and the upper limit of gene counts
@@ -110,7 +111,6 @@ def log_normalize(adata: ad.AnnData):
     sc.pp.normalize_total(adata, target_sum=base_cfg.scale_factor, inplace=True, key_added='counts_per_cell')
     adata.layers['normalized'] = adata.X.copy()
     sc.pp.log1p(adata, base=e)
-    print(adata.layers['normalized'][adata.layers['normalized'] < 0])
     if 'batch' in adata.obs:
         print('scaling data for each batch...')
         for batch in adata.obs['batch'].unique():
@@ -118,7 +118,6 @@ def log_normalize(adata: ad.AnnData):
             adata.X[batch_mask, :] = sc.pp.scale(adata.X[batch_mask, :], max_value=10, copy=True)
     else:
         sc.pp.scale(adata, max_value=10, copy=False)
-        print(adata.layers['normalized'][adata.layers['normalized'] < 0])
 
 
 def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnData:
@@ -151,7 +150,7 @@ def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnDa
 
 def load_markers(marker_type: Literal['PBMC', 'SimPBMCsmall', 'pancreas', 'brain']) -> Tuple[np.ndarray, np.ndarray]:
     marker_path = lambda x: os.path.join(data_cfg.marker_path, x)
-    kwargs = {'skiprows': 1, 'dtype': np.str, 'delimiter': ','}
+    kwargs = {'skiprows': 1, 'dtype': str, 'delimiter': ','}
     if marker_type == 'PBMC':
         panglao = np.unique(np.loadtxt(marker_path('PBMC_panglaoDB.csv'), usecols=[0], **kwargs))
         cellmarker = np.unique(np.loadtxt(marker_path('PBMC_CellMarker.csv'), usecols=[1], **kwargs))

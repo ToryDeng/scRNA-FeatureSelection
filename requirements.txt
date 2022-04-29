@@ -10,7 +10,7 @@ lightgbm>=3.2.1
 xgboost>=1.5.0
 scGeneFit>=1.0.2
 scipy>=1.7.1
-besca
+besca>=2.4
 bcubed>=1.5
 scib>=1.0.0
 harmonypy>=0.0.5

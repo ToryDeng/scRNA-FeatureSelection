@@ -18,11 +18,13 @@ class MethodConfig:
             'feast': 'FEAST',
             'rf+fisher_score': 'Random Forest+\nFisher Score',
             'seurat_v3+deviance': 'Seurat v3+\nDeviance',
-            'geneclust': 'GeneClust'
+            'scran': 'scran',
+            'geneclust': 'GeneClust',
+            'mi': 'Mutual Information'
         }
         self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger',
-                             'geneclust']
-        self.supervised = ['rf', 'lgb', 'xgb', 'nsc', 'fisher_score', 'scGeneFit']
+                             'scran', 'geneclust']
+        self.supervised = ['rf', 'lgb', 'xgb', 'nsc', 'mi', 'fisher_score', 'scGeneFit']
 
 
 method_cfg = MethodConfig()

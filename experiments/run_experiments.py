@@ -1,8 +1,9 @@
 import time
+import traceback
 from typing import List
 
 from common_utils.utils import plot_2D, head
-from config import marker_cfg, assign_cfg, cluster_cfg, batch_cfg, time_cfg
+from config import marker_cfg, assign_cfg, cluster_cfg, batch_cfg, time_cfg, method_cfg
 from data_loader.dataset import yield_train_test_data, load_data
 from experiments.metrics import marker_discovery_rate, correction_metrics, classification_metrics, clustering_metrics
 from experiments.recorders import init_recorder
@@ -59,7 +60,7 @@ def run_batch_correction(fs_methods: List[str]):
         recorder.sink()  # sink every dataset
 
 
-def run_cell_classification(fs_methods: List[str]):
+def run_cell_classification(fs_methods: List[str] = method_cfg.unsupervised + method_cfg.supervised):
     recorder = init_recorder(fs_methods, assign_cfg)
     for dataset_name in assign_cfg.intra_datasets if assign_cfg.is_intra else assign_cfg.inter_datasets:
         adata = load_data(dataset_name)  # load the whole dataset
@@ -85,7 +86,7 @@ def run_cell_classification(fs_methods: List[str]):
         recorder.sink()
 
 
-def run_cell_clustering(fs_methods: List[str]):
+def run_cell_clustering(fs_methods: List[str] = method_cfg.unsupervised):
     recorder = init_recorder(fs_methods, cluster_cfg)
     for dataset_name in cluster_cfg.datasets:
         adata = load_data(dataset_name)
@@ -93,12 +94,14 @@ def run_cell_clustering(fs_methods: List[str]):
         cluster_cells(adata)
         baseline_results = clustering_metrics(adata)
         recorder.record(dataset_name, 'AllGenes', baseline_results)
-        print(recorder.clustering)
         for fs_method in fs_methods:
             for n_genes in cluster_cfg.n_genes:
-                selected_adata = select_genes(adata, fs_method, n_genes)
-                cluster_cells(selected_adata)
-                results = clustering_metrics(selected_adata)
-                recorder.record(dataset_name, n_genes, results, fs_method)
-                print(recorder.clustering)
+                try:
+                    selected_adata = select_genes(adata, fs_method, n_genes)
+                    cluster_cells(selected_adata)
+                    results = clustering_metrics(selected_adata)
+                    recorder.record(dataset_name, n_genes, results, fs_method)
+                    print(recorder.clustering)
+                except:
+                    traceback.print_exc()
         recorder.sink()  # sink every dataset

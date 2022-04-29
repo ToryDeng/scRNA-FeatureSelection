@@ -1,32 +1,29 @@
 import datetime
 import traceback
-import sys
 from collections import defaultdict, Counter
 from typing import Optional, List
 
+import GeneClust
 import anndata as ad
 import anndata2ri
-import numpy as np
 import pandas as pd
 import scanpy as sc
 from lightgbm import LGBMClassifier
 from rpy2.robjects import r, globalenv
 from rpy2.robjects.packages import importr
+from scGeneFit.functions import *
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_selection import mutual_info_classif
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import NearestCentroid
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
-from scGeneFit.functions import *
 
 from common_utils.utils import HiddenPrints
 from config import base_cfg
 from selection.fisher_score import fisher_score
 from selection.nearest_centroid import nearest_centroid_select
 from selection.utils import is_saved, load_genes, save_genes, subset_adata
-
-sys.path.append(r"/volume1/home/tdeng/SingleCell/GeneClust/")
-from GeneClust import select
 
 
 def single_select_by_batch(adata: ad.AnnData,
@@ -63,6 +60,8 @@ def single_select_by_batch(adata: ad.AnnData,
         selected_genes_df = variance_compute_importance(adata)
     elif method == 'cv2':
         selected_genes_df = cv2_compute_importance(adata)
+    elif method == 'mi':
+        selected_genes_df = mutual_info_compute_importance(adata)
     elif method == 'scGeneFit':
         selected_genes_df = scGeneFit(adata, n_selected_genes)
     elif method == 'fisher_score':
@@ -79,10 +78,14 @@ def single_select_by_batch(adata: ad.AnnData,
         selected_genes_df = scmap_compute_importance(adata)
     elif method == 'deviance':
         selected_genes_df = deviance_compute_importance(adata)
+    elif method == 'scran':
+        selected_genes_df = scran(adata)
     elif method == 'geneclust':
-        params = {'n_selected_genes': n_selected_genes, 'dr_method': 'glm-pca', 'n_comps': 50, 'similarity': 'spearman',
-                  'clustering': 'gmm', 'n_clusters': 200, 'in_cluster_score': 'm3drop', 'return_genes': True}
-        selected_genes_df = select(adata, **params)
+        params = {'n_selected_genes': n_selected_genes, 'dr_method': 'pca', 'n_comps': 50, 'distance': 'mahalanobis',
+                  'clustering': 'gmm', 'n_clusters': 200,
+                  'in_cluster_score': 'center', 'inter_cluster_score': 'silhouette', 'return_genes': True}
+        print(params)
+        selected_genes_df = GeneClust.select(adata, **params)
     else:
         raise NotImplementedError(f"No implementation of {method}!")
 
@@ -219,10 +222,11 @@ def select_genes(adata: ad.AnnData,
     else:
         df = select_genes_by_batch(adata, method, n_selected_genes, use_saved)
 
-    if inplace:
-        subset_adata(adata, df['Gene'].values, inplace=True)
-    else:
-        return subset_adata(adata, df['Gene'].values, inplace=False)
+    if df is not None:  # have enough genes
+        if inplace:
+            subset_adata(adata, df['Gene'].values, inplace=True)
+        else:
+            return subset_adata(adata, df['Gene'].values, inplace=False)
 
 
 # python methods
@@ -271,6 +275,12 @@ def cv2_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.square(std / mean)})
 
 
+def mutual_info_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+    y = adata.obs['celltype'].values
+    mutual_info = mutual_info_classif(adata.raw.X, y, discrete_features=False)
+    return pd.DataFrame({'Gene': adata.var_names, 'Importance': mutual_info})
+
+
 def scGeneFit(adata: ad.AnnData, n_selected_genes: int) -> Optional[pd.DataFrame]:
     markers = get_markers(adata.X, adata.obs['celltype'].values, n_selected_genes)
     return pd.DataFrame({'Gene': adata.var_names[markers]})
@@ -313,13 +323,13 @@ def FEAST(adata: ad.AnnData) -> Optional[pd.DataFrame]:
         with HiddenPrints():
             anndata2ri.activate()
             importr('FEAST')
-            raw_adata = adata.raw.to_adata()
-            globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
+            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
             r("""
             Y <- process_Y(assay(sce, 'X'), thre = 2)
+            Ynorm <- Norm_Y(Y)
             n_classes <- dim(unique(colData(sce)['celltype']))[1]
             rm(sce)
-            idxs = FEAST_fast(Y, k = n_classes)
+            idxs = FEAST_fast(Ynorm, k = n_classes)
             """)
             result = r("data.frame(Gene=rownames(Y)[idxs])")
             anndata2ri.deactivate()
@@ -345,8 +355,7 @@ def M3Drop_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
         with HiddenPrints():
             anndata2ri.activate()
             importr('M3Drop')
-            raw_adata = adata.raw.to_adata()
-            globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
+            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
             r("""
             norm <- M3DropConvertData(assay(sce, 'X'), is.counts=TRUE)
             DE_genes <- M3DropFeatureSelection(norm, mt_method="fdr", mt_threshold=1, suppress.plot = TRUE)
@@ -366,18 +375,17 @@ def scmap_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
             anndata2ri.activate()
             importr('scmap')
             importr('scater')
-            importr('dplyr')
-            raw_adata = adata.raw.to_adata()
-            globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
+            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
             r("""
-            assay(sce, 'X') <- as.matrix(assay(sce, 'X'))
-            sce <- logNormCounts(sce, assay.type = "X")
+            counts(sce) <- as.matrix(assay(sce, 'X'))
+            sce <- logNormCounts(sce)
             rowData(sce)$feature_symbol <- rownames(sce)
             sce <- selectFeatures(sce, dim(sce)[1], suppress_plot = TRUE)
+            print(rowData(sce)['scmap_scores'])
             """)
-            result = r("rowData(sce)['scmap_scores']")
+            result = r("na.omit(rowData(sce)['scmap_scores'])")
             anndata2ri.deactivate()
-            return result.reset_index()  # index  scmap_scores
+        return result.reset_index()  # index  scmap_scores
     except:
         traceback.print_exc()
 
@@ -387,10 +395,30 @@ def deviance_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
         with HiddenPrints():
             anndata2ri.activate()
             importr('scry')
-            raw_adata = adata.raw.to_adata()
-            globalenv['sce'] = anndata2ri.py2rpy(raw_adata)  # deviance need raw data
+            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())  # deviance need raw data
             result = r("rowData(devianceFeatureSelection(sce, assay='X'))['binomial_deviance']")
             anndata2ri.deactivate()
             return result.reset_index()
     except:
         traceback.print_exc()
+
+
+def scran(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+    try:
+        with HiddenPrints():
+            anndata2ri.activate()
+            importr('scuttle')
+            importr('scran')
+            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+            r("""
+            assay(sce, 'X') <- as.matrix(assay(sce, 'X'))
+            sce <- logNormCounts(sce, assay.type = "X")
+            HVGs <- getTopHVGs(sce)
+            """)
+            result = r("data.frame(Gene=HVGs)")
+            anndata2ri.deactivate()
+            return result
+    except:
+        traceback.print_exc()
+
+

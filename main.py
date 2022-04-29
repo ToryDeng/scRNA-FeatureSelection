@@ -1,4 +1,4 @@
 from experiments.run_experiments import run_cell_clustering
 
-run_cell_clustering(fs_methods=['geneclust'])  # , 'var', , 'seurat_v3',, 'feast' 'geneclust'
-
+run_cell_clustering()
+# , 'geneclust', 'seurat_v3', 'm3drop', 'feast', 'scran'

@@ -73,7 +73,8 @@ def load_genes(adata: ad.AnnData, method: str, n_genes: int):
     """
     division_type = str(adata.uns['fold']) if 'fold' in adata.uns_keys() else 'all'
     path = os.path.join(data_cfg.cache_path, 'geneData', division_type, adata.uns['data_name'], method, f'{n_genes}-genes.csv')
-    selection_df = pd.read_csv(path)
+    selection_df = pd.read_csv(path, index_col=0)
+    selection_df['Gene'] = selection_df['Gene'].astype(str)
     return selection_df
 
 

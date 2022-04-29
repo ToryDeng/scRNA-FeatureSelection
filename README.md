@@ -1,3 +1,6 @@
+![GitHub](https://img.shields.io/github/license/ToryDeng/scRNA-FeatureSelection)
+![GitHub Repo stars](https://img.shields.io/github/stars/ToryDeng/scRNA-FeatureSelection)
+![GitHub repo size](https://img.shields.io/github/repo-size/ToryDeng/scRNA-FeatureSelection)
 # scRNA-FeatureSelection
 Evaluation of several gene selection methods (including ensemble gene selection methods).
 

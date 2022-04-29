@@ -3,7 +3,7 @@ class BasicExperimentConfig:
         self.random_seed = 2022
         self.scale_factor = 1e4  # normalization
         self.ensemble_mode = 'count_sum'  # ensemble selection
-        self.n_genes = [500, 1000, 1500, 2000]  # selected genes
+        self.n_genes = [500, 1000, 1500, 2000]  # selected genes  
         self.sink_dir = 'records/'
 
 
@@ -19,7 +19,7 @@ class CellClassificationConfig(BasicExperimentConfig):
         self.methods = ['SingleR']
         self.is_intra = False
         self.intra_datasets = ['PBMCbatchone', 'PBMCbatchtwo']
-        self.n_folds = 2  # 5 folds, in intra-dataset
+        self.n_folds = 5  # 5 folds, in intra-dataset
         self.inter_datasets = ['PBMCbatchone+PBMCbatchtwo']
         self.metrics = ['f1', 'ck']
 
@@ -27,11 +27,10 @@ class CellClassificationConfig(BasicExperimentConfig):
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['PBMCbatchone', 'PBMCbatchtwo']
-        # 'BaronHuman', 'Segerstolpe', 'Zilionis', 'Marques', 'Darmanis', 'Guo', 'QuakeHeart',
-        # 'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue',
-        # 'Alles', 'Ariss', 'ToschesLizard',
-
+        self.datasets = ['PBMCbatchone', 'PBMCbatchtwo', 'Alles', 'Ariss', 'ToschesLizard',
+                         'BaronHuman', 'Segerstolpe', 'Zilionis', 'Marques', 'Darmanis', 'Guo', 'QuakeHeart',
+                         'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue'
+                         ]
 
         self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs  # , 'SC3s': 1
         self.metrics = ['ARI', 'V', 'bcubed']
