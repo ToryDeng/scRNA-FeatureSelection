@@ -1,5 +1,6 @@
 import os
-from typing import Union
+import shutil
+from typing import Union, List
 
 import anndata as ad
 import numpy as np
@@ -76,6 +77,23 @@ def load_genes(adata: ad.AnnData, method: str, n_genes: int):
     selection_df = pd.read_csv(path, index_col=0)
     selection_df['Gene'] = selection_df['Gene'].astype(str)
     return selection_df
+
+
+def delete_genes(methods: List[str]):
+    """
+    delete all genes created by a single feature selection method.
+
+    Parameters
+    ----------
+    methods
+      the feature selection methods
+    Returns
+    -------
+      None
+    """
+    for method in methods:
+        gene_files_path = os.path.join(data_cfg.cache_path, 'geneData', '**', '**', method)
+        shutil.rmtree(gene_files_path)
 
 
 def subset_adata(adata: ad.AnnData, selected_genes: Union[np.ndarray, pd.Index], inplace=False):

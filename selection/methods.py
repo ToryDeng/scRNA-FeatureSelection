@@ -82,10 +82,15 @@ def single_select_by_batch(adata: ad.AnnData,
         selected_genes_df = scran(adata)
     elif method == 'geneclust':
         params = {'n_selected_genes': n_selected_genes, 'dr_method': 'pca', 'n_comps': 50, 'distance': 'mahalanobis',
-                  'clustering': 'gmm', 'n_clusters': 200,
+                  'clustering': 'gmm', 'n_clusters': 400,
                   'in_cluster_score': 'center', 'inter_cluster_score': 'silhouette', 'return_genes': True}
         print(params)
         selected_genes_df = GeneClust.select(adata, **params)
+    elif method == 'gestect':
+        params = {'n_selected_genes': n_selected_genes, 'use_rep': 'log-normalized', 'rank': 30,
+                  'n_cell_clusters': adata.obs.celltype.unique().shape[0], 'gene_clustering_method': 'agg',
+                  'return_genes': True}
+        selected_genes_df = GeneClust.gestect(adata, **params)
     else:
         raise NotImplementedError(f"No implementation of {method}!")
 

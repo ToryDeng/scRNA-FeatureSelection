@@ -20,10 +20,11 @@ class MethodConfig:
             'seurat_v3+deviance': 'Seurat v3+\nDeviance',
             'scran': 'scran',
             'geneclust': 'GeneClust',
-            'mi': 'Mutual Information'
+            'mi': 'Mutual Information',
+            'gestect': 'gestect'
         }
         self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger',
-                             'scran', 'geneclust']
+                             'scran', 'geneclust', 'gestect']
         self.supervised = ['rf', 'lgb', 'xgb', 'nsc', 'mi', 'fisher_score', 'scGeneFit']
 
 

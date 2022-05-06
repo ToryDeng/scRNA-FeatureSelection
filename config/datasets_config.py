@@ -49,6 +49,7 @@ class DatasetConfig:
                               'B.cell': 'B',
                               'CD8.T.cell': 'CD8 T'
                               }
+        self.force_min_cells = 1
         self.rare_rate = 0.05  # at most 5% of all cells
         self.rare_number = 30  # at least 30 cells
 

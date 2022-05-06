@@ -100,7 +100,7 @@ def yield_train_test_data(adata: ad.AnnData):
     """
     For intra-dataset classification, this function yield (n_folds - 1) folds of data as training set, and the remaining
     fold as test set. For inter-dataset classification, this function yield a batch as training set, and another batch
-    as test set.
+    as testing set.
 
     Parameters
     ----------

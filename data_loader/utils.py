@@ -85,11 +85,12 @@ def control_quality(adata: ad.AnnData) -> ad.AnnData:
     adata.var['SYMBOL'] = adata.var_names
     with HiddenPrints():
         min_genes, min_cells, min_counts, n_genes, percent_mito, max_counts = bc.pp.valOutlier(adata)
-        min_cells = 1 if min_cells == 0 else min_cells
-        # filtering with thresholds of gene and cell counts
-        adata = bc.st.filtering_cells_genes_min(adata, min_cells, min_genes, min_counts)
+        min_cells = data_cfg.force_min_cells if min_cells < data_cfg.force_min_cells else min_cells
+
         # filtering with thresholds of proportion of mitochondrial genes and the upper limit of gene counts
         adata = bc.st.filtering_mito_genes_max(adata, percent_mito, n_genes, max_counts)
+        # filtering with thresholds of gene and cell counts
+        adata = bc.st.filtering_cells_genes_min(adata, min_cells, min_genes, min_counts)
     adata.var.drop(columns=['SYMBOL'], inplace=True)
     return adata
 
@@ -110,7 +111,8 @@ def log_normalize(adata: ad.AnnData):
     #
     sc.pp.normalize_total(adata, target_sum=base_cfg.scale_factor, inplace=True, key_added='counts_per_cell')
     adata.layers['normalized'] = adata.X.copy()
-    sc.pp.log1p(adata, base=e)
+    sc.pp.log1p(adata, base=e)  # to avoid None type value when transforming Anndata to SingleCellExperiment
+    adata.layers['log-normalized'] = adata.X.copy()
     if 'batch' in adata.obs:
         print('scaling data for each batch...')
         for batch in adata.obs['batch'].unique():

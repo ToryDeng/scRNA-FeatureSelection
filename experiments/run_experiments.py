@@ -12,19 +12,19 @@ from selection.methods import select_genes
 from selection.utils import subset_adata
 
 
-def run_marker_discovery(fs_methods: List[str]):
+def run_marker_discovery(fs_methods: List[str] = method_cfg.unsupervised, use_saved_genes: bool = True):
     recorder = init_recorder(fs_methods, marker_cfg)
     for dataset_name in marker_cfg.datasets:
         adata = load_data(dataset_name)
         for fs_method in fs_methods:
             for n_genes in marker_cfg.n_genes:
-                selected_adata = select_genes(adata, fs_method, n_genes)
+                selected_adata = select_genes(adata, fs_method, n_genes, use_saved=use_saved_genes)
                 rate = marker_discovery_rate(selected_adata, adata)
                 recorder.record(dataset_name, n_genes, fs_method, rate)
         recorder.sink()  # sink every dataset
 
 
-def run_computation_time(fs_methods: List[str]):
+def run_computation_time(fs_methods: List[str] = method_cfg.unsupervised):
     recorder = init_recorder(fs_methods, time_cfg)
     for dataset_name in time_cfg.datasets:
         adata = load_data(dataset_name)
@@ -36,7 +36,7 @@ def run_computation_time(fs_methods: List[str]):
         recorder.sink()  # sink every dataset
 
 
-def run_batch_correction(fs_methods: List[str]):
+def run_batch_correction(fs_methods: List[str] = method_cfg.unsupervised + method_cfg.supervised, use_saved_genes: bool = True):
     recorder = init_recorder(fs_methods, batch_cfg)
     for dataset_name in batch_cfg.datasets:
         adata = load_data(dataset_name)
@@ -45,7 +45,7 @@ def run_batch_correction(fs_methods: List[str]):
             for n_genes in batch_cfg.n_genes:
                 for bc_method in batch_cfg.methods:
                     # feature selection + batch correction
-                    selected_adata = select_genes(adata, fs_method, n_genes, select_by_batch=True)
+                    selected_adata = select_genes(adata, fs_method, n_genes, use_saved=use_saved_genes, select_by_batch=True)
                     corrected_adata = correct_batch_effect(selected_adata, bc_method)
                     results = correction_metrics(corrected_adata, batch_cfg)
                     recorder.record(dataset_name, 'selection_first', n_genes, bc_method, fs_method, results)
@@ -53,14 +53,14 @@ def run_batch_correction(fs_methods: List[str]):
 
                     # batch correction + feature selection
                     corrected_adata = correct_batch_effect(adata, bc_method)
-                    selected_adata = select_genes(corrected_adata, fs_method, n_genes, select_by_batch=False)
+                    selected_adata = select_genes(corrected_adata, fs_method, n_genes, use_saved=use_saved_genes, select_by_batch=False)
                     results = correction_metrics(selected_adata, batch_cfg)
                     recorder.record(dataset_name, 'correction_first', n_genes, bc_method, fs_method, results)
                     plot_2D(corrected_adata, fs_method, bc_method, 'after', 'correction_first')
         recorder.sink()  # sink every dataset
 
 
-def run_cell_classification(fs_methods: List[str] = method_cfg.unsupervised + method_cfg.supervised):
+def run_cell_classification(fs_methods: List[str] = method_cfg.unsupervised + method_cfg.supervised, use_saved_genes: bool = True):
     recorder = init_recorder(fs_methods, assign_cfg)
     for dataset_name in assign_cfg.intra_datasets if assign_cfg.is_intra else assign_cfg.inter_datasets:
         adata = load_data(dataset_name)  # load the whole dataset
@@ -77,7 +77,7 @@ def run_cell_classification(fs_methods: List[str] = method_cfg.unsupervised + me
                 for n_genes in assign_cfg.n_genes:
                     for fs_method in fs_methods:
                         # select genes on training set and do classification
-                        selected_train_adata = select_genes(train_adata, fs_method, n_genes, select_by_batch=False)
+                        selected_train_adata = select_genes(train_adata, fs_method, n_genes, use_saved=use_saved_genes, select_by_batch=False)
                         selected_test_adata = subset_adata(test_adata, selected_train_adata.var_names)
                         classify_cells(selected_train_adata, selected_test_adata)
                         results = classification_metrics(selected_test_adata)
@@ -86,7 +86,7 @@ def run_cell_classification(fs_methods: List[str] = method_cfg.unsupervised + me
         recorder.sink()
 
 
-def run_cell_clustering(fs_methods: List[str] = method_cfg.unsupervised):
+def run_cell_clustering(fs_methods: List[str] = method_cfg.unsupervised, use_saved_genes: bool = True):
     recorder = init_recorder(fs_methods, cluster_cfg)
     for dataset_name in cluster_cfg.datasets:
         adata = load_data(dataset_name)
@@ -97,7 +97,7 @@ def run_cell_clustering(fs_methods: List[str] = method_cfg.unsupervised):
         for fs_method in fs_methods:
             for n_genes in cluster_cfg.n_genes:
                 try:
-                    selected_adata = select_genes(adata, fs_method, n_genes)
+                    selected_adata = select_genes(adata, fs_method, n_genes, use_saved=use_saved_genes)
                     cluster_cells(selected_adata)
                     results = clustering_metrics(selected_adata)
                     recorder.record(dataset_name, n_genes, results, fs_method)
