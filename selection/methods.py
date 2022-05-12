@@ -87,9 +87,11 @@ def single_select_by_batch(adata: ad.AnnData,
         print(params)
         selected_genes_df = GeneClust.select(adata, **params)
     elif method == 'gestect':
-        params = {'n_selected_genes': n_selected_genes, 'use_rep': 'log-normalized', 'rank': 30,
-                  'n_cell_clusters': adata.obs.celltype.unique().shape[0], 'gene_clustering_method': 'agg',
+        params = {'n_selected_genes': n_selected_genes, 'use_rep': None, 'n_components': 50,
+                  'n_cell_clusters': adata.obs.celltype.unique().shape[0], 'gene_clustering': 'gmm',
+                  'gene_score': 'kw_stat', 'confidence': 'single_proba',
                   'return_genes': True}
+        print(params)
         selected_genes_df = GeneClust.gestect(adata, **params)
     else:
         raise NotImplementedError(f"No implementation of {method}!")
