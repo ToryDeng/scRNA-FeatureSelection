@@ -10,7 +10,7 @@ class BasicExperimentConfig:
 class MarkerDiscoveryConfig(BasicExperimentConfig):
     def __init__(self):
         super(MarkerDiscoveryConfig, self).__init__()
-        self.datasets = ['PBMCbatchone', 'PBMCbatchtwo', 'PBMCsmall', 'BaronHuman', 'Segerstolpe', 'Zeisel']
+        self.datasets = ['PBMCbatchone', 'PBMCbatchtwo', 'BaronHuman', 'Segerstolpe']
 
 
 class CellClassificationConfig(BasicExperimentConfig):
@@ -27,10 +27,9 @@ class CellClassificationConfig(BasicExperimentConfig):
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['PBMCbatchone', 'PBMCbatchtwo', 'Alles', 'Ariss', 'ToschesLizard',
-                         'BaronHuman', 'Segerstolpe', 'Zilionis', 'Marques', 'Darmanis', 'Guo', 'QuakeHeart',
-                         'Zeisel', 'BaronMouse', 'LaMannoStem', 'LaMannoMidbrain', 'QuakeSpleen', 'QuakeTongue'
-                         ]
+        self.datasets = ['Ariss', 'Bach', 'BaronHuman', 'Chen', 'Dahlin',
+                         'He', 'Hochane', 'PBMCbatchone', 'PBMCbatchtwo', 'Plasschaert',
+                         'QuakeTrachea', 'Segerstolpe', 'ToschesLizard', 'Zhao']
 
         self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs  # , 'SC3s': 1
         self.metrics = ['ARI', 'V', 'bcubed']
@@ -39,8 +38,7 @@ class CellClusteringConfig(BasicExperimentConfig):
 class BatchCorrectionConfig(BasicExperimentConfig):
     def __init__(self):
         super(BatchCorrectionConfig, self).__init__()
-        self.datasets = ['Aztekin', 'MouseAtlas', 'MouseHSP', 'MouseRetina',
-                         'PBMCbatchone+PBMCbatchtwo', 'BaronHuman+Segerstolpe']
+        self.datasets = ['Aztekin', 'Campbell', 'Shekhar', 'PBMCbatchone+PBMCbatchtwo', 'BaronHuman+Segerstolpe']
         self.methods = ['Seurat_v4']
         self.orders = ['correction_first', 'selection_first']
         self.plot = True
@@ -51,9 +49,9 @@ class BatchCorrectionConfig(BasicExperimentConfig):
 class ComputationTimeConfig(BasicExperimentConfig):
     def __init__(self):
         super(ComputationTimeConfig, self).__init__()
-        self.datasets = ['Vento500cells', 'Vento1000cells', 'Vento2000cells', 'Vento5000cells',
-                         'Vento10000cells', 'Vento20000cells', 'Vento50000cells',
-                         'Guo5000genes', 'Guo10000genes', 'Guo15000genes', 'Guo20000genes', 'Guo25000genes']
+        self.datasets = ['Zhao500cells', 'Zhao1000cells', 'Zhao2000cells',
+                         'Zhao5000cells', 'Zhao10000cells', 'Zhao20000cells', 'Zhao50000cells',
+                         'Dahlin5000genes', 'Dahlin10000genes', 'Dahlin15000genes', 'Dahlin20000genes']
 
 
 base_cfg = BasicExperimentConfig()

@@ -11,31 +11,26 @@ class DatasetConfig:
         self.marker_path = "/volume1/home/tdeng/SingleCell/Data/MarkerGene/"
 
         # used datasets
-        self.full_dataset_names = {'Aztekin': 'AztekinTail',
-                                   'BaronHuman': 'BaronHumanPancreas',
-                                   'BaronMouse': 'BaronMousePancreas',
-                                   'Segerstolpe': 'SegerstolpeHumanPancreas',
-                                   'Vento': 'VentoHumanPlacenta',
-                                   'Zilionis': 'ZilionisMouseLungCancer',
-                                   'LaMannoMidbrain': 'LaMannoHumanEmbryonicMidbrain',
-                                   'LaMannoStem': 'LaMannoHumanEmbryonicStem',
-                                   'Zeisel': 'ZeiselMouseBrain',
-                                   'Marques': 'MarquesMouseBrain',
-                                   'Ariss': 'Ariss',
-                                   'ToschesLizard': 'ToschesLizard',
-                                   'PBMCsmall': 'PBMCsmall',
-                                   'QuakeHeart': 'QuakeMouseHeart',
-                                   'SimPBMCsmall': 'simulatingPBMCsmall',
-                                   'QuakeTongue': 'QuakeMouseTongue',
-                                   'Guo': 'GuoHumanTestis',
-                                   'Alles': 'Alles',
-                                   'QuakeSpleen': 'QuakeMouseSpleen',
-                                   'Darmanis': 'DarmanisBrain',
-                                   'MouseAtlas': 'MouseCellAtlas',
-                                   'PBMCbatchone': 'PBMCbatch1',
-                                   'PBMCbatchtwo': 'PBMCbatch2',
-                                   'MouseRetina': 'MouseRetina',
-                                   'MouseHSP': 'MouseHematopoieticStemProgenitor'}
+        self.full_dataset_names = {
+            'Ariss': 'Ariss',
+            'Aztekin': 'AztekinTail',
+            'Bach': 'Bach',
+            'BaronHuman': 'BaronHuman',
+            'Campbell': 'Campbell',
+            'Chen': 'Chen',
+            'Dahlin': 'Dahlin',
+            'Darmanis': 'DarmanisBrain',
+            'He': 'HeOrganAtlas',
+            'Hochane': 'Hochane',
+            'PBMCbatchone': 'PBMC8k',
+            'PBMCbatchtwo': 'PBMC7k',
+            'Plasschaert': 'Plasschaert',
+            'QuakeTrachea': 'QuakeTrachea',
+            'Segerstolpe': 'Segerstolpe',
+            'Shekhar': 'Shekhar',
+            'ToschesLizard': 'ToschesLizard',
+            'Zhao': 'ZhaoImmuneLiver'
+        }
 
         # remove_types in pancreas data
         self.remove_types = ['unclear', 'not.applicable', 'unclassified', 'co.expression', 'beta.contaminated',

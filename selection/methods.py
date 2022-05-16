@@ -89,7 +89,7 @@ def single_select_by_batch(adata: ad.AnnData,
     elif method == 'gestect':
         params = {'n_selected_genes': n_selected_genes, 'use_rep': None, 'n_components': 50,
                   'n_cell_clusters': adata.obs.celltype.unique().shape[0], 'gene_clustering': 'gmm',
-                  'gene_score': 'kw_stat', 'confidence': 'single_proba',
+                  'gene_score': 'f_stat', 'confidence': 'consensus', 'n_gene_clusters': 200,
                   'return_genes': True}
         print(params)
         selected_genes_df = GeneClust.gestect(adata, **params)
