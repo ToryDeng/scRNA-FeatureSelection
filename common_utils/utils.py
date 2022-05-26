@@ -8,6 +8,8 @@ import matplotlib
 import numpy as np
 import pandas as pd
 
+from console import console
+
 matplotlib.use('agg')
 import scanpy as sc
 
@@ -32,7 +34,7 @@ def head(name: str, n_times: int = None, head_len=65):
     title = ' ' + ' '.join([name, '-', str(n_times)]) + ' ' if n_times is not None else ' ' + name + ' '
     if head_len - len(title) <= 0:
         warnings.warn("title is too long.")
-    print(title.center(head_len, '*'))
+    console.rule('[bold red]' + title)
 
 
 def plot_tsne(combined_adata: ad.AnnData, figure_name: str, **kwargs):

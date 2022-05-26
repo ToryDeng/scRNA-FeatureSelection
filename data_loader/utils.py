@@ -1,17 +1,21 @@
 import os
 import re
+import warnings
 from functools import reduce
+from functools import wraps
 from math import e
-from typing import Literal, Tuple
+from typing import Literal, Tuple, Union
 
 import anndata as ad
 import besca as bc
 import numpy as np
 import pandas as pd
 import scanpy as sc
+from packaging import version
 
 from common_utils.utils import HiddenPrints
-from config import data_cfg, base_cfg
+from config import data_cfg, base_cfg, marker_cfg
+from console import console
 
 
 def complexity(adata: ad.AnnData, use_raw: bool = False):
@@ -33,15 +37,22 @@ def complexity(adata: ad.AnnData, use_raw: bool = False):
         adata = adata.raw.to_adata()
     all_centroids = pd.concat(
         objs=[adata[adata.obs['celltype'] == t].to_df().mean(axis=0).rename(t) for t in adata.obs['celltype'].unique()],
-        axis=1).T
+        axis=1
+    ).T
     corr_mtx = np.corrcoef(all_centroids)
     return np.mean([corr_mtx[i, j] for i, j in enumerate(np.argsort(corr_mtx)[:, -2])])
 
 
-def clean_var_names(gene_names: pd.Index) -> np.ndarray:
+def clean_var_names(gene_names: Union[pd.Index, np.ndarray]) -> np.ndarray:
+    if isinstance(gene_names, pd.Index):
+        gene_names = gene_names.to_numpy()
+    elif isinstance(gene_names, np.ndarray):
+        pass
+    else:
+        raise TypeError("Can only handle pd.Index or np.ndarray")
     regex = re.compile(pattern='[-_:+()|]')
     vreplace = np.vectorize(lambda x: regex.sub('.', x), otypes=[str])
-    return vreplace(gene_names.to_numpy())
+    return vreplace(gene_names)
 
 
 def make_name_consistent(adata: ad.AnnData):
@@ -56,6 +67,7 @@ def make_name_consistent(adata: ad.AnnData):
     inplace, return None
     """
     # rename genes
+    adata.var['original_gene'] = adata.var_names
     adata.var_names = clean_var_names(adata.var_names)
     # rename celltype column
     adata.obs.rename(columns={adata.obs.columns[0]: 'celltype'}, inplace=True)
@@ -73,14 +85,14 @@ def make_name_consistent(adata: ad.AnnData):
     # categorize batch column
     if 'batch' in adata.obs and not isinstance(adata.obs['batch'], pd.Categorical):
         adata.obs['batch'] = pd.Categorical(adata.obs['batch'])
-    # make cells and genes unique
+    # make cell and gene names unique
     adata.obs_names_make_unique(join='.')
     adata.var_names_make_unique(join='.')
 
 
 def control_quality(adata: ad.AnnData) -> ad.AnnData:
     # filter unclear cells
-    adata = adata[~adata.obs['celltype'].isin(data_cfg.remove_types)]
+    adata = adata[~adata.obs['celltype'].isin(data_cfg.remove_types)].copy()
 
     adata.var['SYMBOL'] = adata.var_names
     with HiddenPrints():
@@ -108,18 +120,17 @@ def log_normalize(adata: ad.AnnData):
     -------
     inplace, return None
     """
-    #
     sc.pp.normalize_total(adata, target_sum=base_cfg.scale_factor, inplace=True, key_added='counts_per_cell')
     adata.layers['normalized'] = adata.X.copy()
-    sc.pp.log1p(adata, base=e)  # to avoid None type value when transforming Anndata to SingleCellExperiment
+    sc.pp.log1p(adata, base=e)  # to avoid None type value when transforming AnnData to SingleCellExperiment
     adata.layers['log-normalized'] = adata.X.copy()
     if 'batch' in adata.obs:
         print('scaling data for each batch...')
         for batch in adata.obs['batch'].unique():
             batch_mask = adata.obs['batch'] == batch
-            adata.X[batch_mask, :] = sc.pp.scale(adata.X[batch_mask, :], max_value=10, copy=True)
+            adata.X[batch_mask, :] = sc.pp.scale(adata.X[batch_mask, :], copy=True)
     else:
-        sc.pp.scale(adata, max_value=10, copy=False)
+        sc.pp.scale(adata, copy=False)
 
 
 def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnData:
@@ -147,6 +158,10 @@ def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnDa
             adata = adata[:, np.random.choice(adata.n_vars, size=int(number), replace=False)]
         else:
             raise ValueError("You input an invalid  source to sample!")
+    elif sample_source != '' and number == '':
+        raise ValueError("You did not specify the number of sample!")
+    elif sample_source == '' and number != '':
+        raise ValueError("You did not specify the source of samples!")
     return adata
 
 
@@ -164,7 +179,7 @@ def load_markers(marker_type: Literal['PBMC', 'SimPBMCsmall', 'pancreas', 'brain
         cellmarker = np.loadtxt(marker_path('MouseBrain_CellMarker.csv'), usecols=[0], **kwargs)
     else:
         raise ValueError(f"Wrong argument 'marker_type'!")
-    return panglao, cellmarker
+    return clean_var_names(panglao), clean_var_names(cellmarker)
 
 
 def store_markers(adata: ad.AnnData):
@@ -181,11 +196,11 @@ def store_markers(adata: ad.AnnData):
     """
     if 'data_name' in adata.uns:
         panglao, cellmarker = None, None
-        if adata.uns['data_name'] in ('PBMCsmall', 'PBMCbatchone', 'PBMCbatchtwo'):  # PBMC
+        if adata.uns['data_name'] in marker_cfg.PBMC_markers:
             panglao, cellmarker = load_markers('PBMC')
-        elif adata.uns['data_name'] in ('Segerstolpe', 'BaronHuman'):
+        elif adata.uns['data_name'] in marker_cfg.pancreas_markers:
             panglao, cellmarker = load_markers('pancreas')
-        elif adata.uns['data_name'] == 'Zeisel':
+        elif adata.uns['data_name'] in marker_cfg.mouse_brain_marekrs:
             panglao, cellmarker = load_markers('brain')
         else:
             pass
@@ -213,20 +228,36 @@ def set_rare_type(adata: ad.AnnData):
     else:
         u_batches = adata.obs['batch'].unique()
         batch_rare_types = [find_rare_cell_types(adata[adata.obs['batch'] == b]) for b in u_batches]
-        inter_types = np.intersect1d(*batch_rare_types) if len(batch_rare_types) == 2 else reduce(np.intersect1d, batch_rare_types)
-        rare_type = None if inter_types is None else inter_types[0]
+        inter_types = np.intersect1d(*batch_rare_types) if len(batch_rare_types) == 2 else reduce(np.intersect1d,
+                                                                                                  batch_rare_types)
+        rare_type = None if inter_types.size == 0 else inter_types[0]
     if rare_type is not None:
         adata.uns['rare_type'] = rare_type
 
 
 def show_data_info(adata: ad.AnnData):
-    print(f"Dataset {adata.uns['data_name']} has {adata.n_obs} cells, {adata.n_vars} genes "
-          f"and {adata.obs['celltype'].unique().shape[0]} classes after filtering.")
+    console.print(f"Dataset [red]{adata.uns['data_name']}[/red] has [blue]{adata.n_obs}[/blue] cells, "
+                  f"[blue]{adata.n_vars}[/blue] genes "
+                  f"and [blue]{adata.obs['celltype'].unique().shape[0]}[/blue] classes after filtering.")
     if 'rare_type' in adata.uns:
-        print(f"Rare cell type (> {data_cfg.rare_number} cells and < "
-              f"{data_cfg.rare_rate * 100}% of all cells): {adata.uns['rare_type']}")
+        console.print(f"Rare cell type (> {data_cfg.rare_number} cells and < "
+                      f"{data_cfg.rare_rate * 100}% of all cells): [magenta]{adata.uns['rare_type']}[/magenta]")
     if 'batch' not in adata.obs:
-        print(f"Data complexity is {np.round(adata.uns['data_complexity'], 3)}.")
+        console.print(f"Data complexity is {np.round(adata.uns['data_complexity'], 3)}.")
     else:
         ubatches = adata.obs['batch'].unique().categories.to_numpy()
-        print(f"Dataset contains {ubatches.shape[0]} batches: {ubatches}")
+        console.print(f"Dataset contains [blue]{ubatches.shape[0]}[/blue] batches: {ubatches}")
+
+
+def filter_futurewarning(f):
+    """
+    Filters FutureWarning from being thrown by the wrapped function.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        with warnings.catch_warnings():
+            if version.parse(ad.__version__).release >= (0, 8):
+                warnings.filterwarnings("ignore", category=FutureWarning)
+            return f(*args, **kwargs)
+
+    return wrapper

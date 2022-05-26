@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from config import data_cfg
+from console import console
 
 
 def save_genes(adata: ad.AnnData, method: str, selected_df: pd.DataFrame):
@@ -30,7 +31,7 @@ def save_genes(adata: ad.AnnData, method: str, selected_df: pd.DataFrame):
     if not os.path.exists(path):
         os.makedirs(path)
     selected_df.to_csv(os.path.join(path, f'{selected_df.shape[0]}-genes.csv'))
-    print(f"{selected_df.shape[0]} Genes have been saved to {path}/")
+    console.print(f"[blue]{selected_df.shape[0]}[/blue] Genes have been saved to {path}/")
 
 
 def is_saved(adata: ad.AnnData, method: str, n_genes: int):

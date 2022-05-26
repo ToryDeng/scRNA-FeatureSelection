@@ -19,12 +19,13 @@ class MethodConfig:
             'rf+fisher_score': 'Random Forest+\nFisher Score',
             'seurat_v3+deviance': 'Seurat v3+\nDeviance',
             'scran': 'scran',
-            'geneclust': 'GeneClust',
             'mi': 'Mutual Information',
-            'gestect': 'gestect'
+            'triku': 'triku',
+            'pagest1w': 'pagest_oneway',
+            'pagest2w': 'pagest_twoway'
         }
         self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger',
-                             'scran', 'geneclust', 'gestect']
+                             'scran', 'triku', 'pagest1w', 'pagest2w']
         self.supervised = ['rf', 'lgb', 'xgb', 'nsc', 'mi', 'fisher_score', 'scGeneFit']
 
 

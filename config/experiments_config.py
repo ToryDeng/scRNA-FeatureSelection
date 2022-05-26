@@ -10,7 +10,9 @@ class BasicExperimentConfig:
 class MarkerDiscoveryConfig(BasicExperimentConfig):
     def __init__(self):
         super(MarkerDiscoveryConfig, self).__init__()
-        self.datasets = ['PBMCbatchone', 'PBMCbatchtwo', 'BaronHuman', 'Segerstolpe']
+        self.PBMC_markers = ['PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim']
+        self.pancreas_markers = ['BaronHumanDonorTwo']
+        self.mouse_brain_marekrs = []
 
 
 class CellClassificationConfig(BasicExperimentConfig):
@@ -18,18 +20,21 @@ class CellClassificationConfig(BasicExperimentConfig):
         super(CellClassificationConfig, self).__init__()
         self.methods = ['SingleR']
         self.is_intra = False
-        self.intra_datasets = ['PBMCbatchone', 'PBMCbatchtwo']
+        self.intra_datasets = ['PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim']
         self.n_folds = 5  # 5 folds, in intra-dataset
-        self.inter_datasets = ['PBMCbatchone+PBMCbatchtwo']
+        self.inter_datasets = ['PBMCSLEA+PBMCSLEB+PBMCSLEC+PBMCSLEctrl+PBMCSLEstim']
         self.metrics = ['f1', 'ck']
 
 
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['Ariss', 'Bach', 'BaronHuman', 'Chen', 'Dahlin',
-                         'He', 'Hochane', 'PBMCbatchone', 'PBMCbatchtwo', 'Plasschaert',
-                         'QuakeTrachea', 'Segerstolpe', 'ToschesLizard', 'Zhao']
+        self.datasets = ['Ariss', 'Adam', 'BachDonorTwo', 'BachDonorThree', 'BachDonorFour',
+                         'BaronHumanDonorTwo', 'ChenHungry', 'ChenHungryTwo', 'ChenNormal',
+                         'Plasschaert', 'HochaneDonorTwo', 'HochaneDonorFour', 'Guo',
+                         'PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim',
+                         'QuakeTracheaDonorFS', 'QuakeTracheaDonorSE', 'ToschesLizard', 'Zhao',
+                         'QuakeSpleenDonorFS', 'QuakeSpleenDonorE']
 
         self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs  # , 'SC3s': 1
         self.metrics = ['ARI', 'V', 'bcubed']
@@ -51,7 +56,7 @@ class ComputationTimeConfig(BasicExperimentConfig):
         super(ComputationTimeConfig, self).__init__()
         self.datasets = ['Zhao500cells', 'Zhao1000cells', 'Zhao2000cells',
                          'Zhao5000cells', 'Zhao10000cells', 'Zhao20000cells', 'Zhao50000cells',
-                         'Dahlin5000genes', 'Dahlin10000genes', 'Dahlin15000genes', 'Dahlin20000genes']
+                         'Guo5000genes', 'Guo10000genes', 'Guo15000genes', 'Guo20000genes']
 
 
 base_cfg = BasicExperimentConfig()

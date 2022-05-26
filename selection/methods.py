@@ -3,12 +3,13 @@ import traceback
 from collections import defaultdict, Counter
 from typing import Optional, List
 
-import GeneClust
 import anndata as ad
 import anndata2ri
 import pandas as pd
 import scanpy as sc
+import triku as tk
 from lightgbm import LGBMClassifier
+from pagest import pagest
 from rpy2.robjects import r, globalenv
 from rpy2.robjects.packages import importr
 from scGeneFit.functions import *
@@ -34,10 +35,12 @@ def single_select_by_batch(adata: ad.AnnData,
 
     Parameters
     ----------
-    adata
+    adata: AnnData
+      The AnnData object
     method
+      The feature selection method
     n_selected_genes
-
+      Number of genes to be selected
     Returns
     -------
     selected_genes_df
@@ -80,19 +83,16 @@ def single_select_by_batch(adata: ad.AnnData,
         selected_genes_df = deviance_compute_importance(adata)
     elif method == 'scran':
         selected_genes_df = scran(adata)
-    elif method == 'geneclust':
-        params = {'n_selected_genes': n_selected_genes, 'dr_method': 'pca', 'n_comps': 50, 'distance': 'mahalanobis',
-                  'clustering': 'gmm', 'n_clusters': 400,
-                  'in_cluster_score': 'center', 'inter_cluster_score': 'silhouette', 'return_genes': True}
-        print(params)
-        selected_genes_df = GeneClust.select(adata, **params)
-    elif method == 'gestect':
-        params = {'n_selected_genes': n_selected_genes, 'use_rep': None, 'n_components': 50,
-                  'n_cell_clusters': adata.obs.celltype.unique().shape[0], 'gene_clustering': 'gmm',
-                  'gene_score': 'f_stat', 'confidence': 'consensus', 'n_gene_clusters': 200,
-                  'return_genes': True}
-        print(params)
-        selected_genes_df = GeneClust.gestect(adata, **params)
+    elif method == 'triku':
+        selected_genes_df = triku_compute_importance(adata.copy())  # .copy() prevent modification on adata object
+    elif method == 'pagest1w':
+        selected_genes = pagest(adata.copy(), n_selected_genes, 'one-way', random_stat=base_cfg.random_seed,
+                                gene_clustering='gmm', gene_cluster_score='spearman', verbose=2)
+        selected_genes_df = pd.DataFrame({'Gene': selected_genes})
+    elif method == 'pagest2w':
+        selected_genes = pagest(adata.copy(), n_selected_genes, 'two-way', cell_distance='euclidean', random_stat=base_cfg.random_seed,
+                                gene_clustering='gmm', gene_cluster_score='spearman', stat='kw', verbose=2)
+        selected_genes_df = pd.DataFrame({'Gene': selected_genes})
     else:
         raise NotImplementedError(f"No implementation of {method}!")
 
@@ -237,68 +237,68 @@ def select_genes(adata: ad.AnnData,
 
 
 # python methods
-def random_forest_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def random_forest_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     y = adata.obs['celltype'].values
     forest = RandomForestClassifier(n_jobs=-1, random_state=0, verbose=0).fit(adata.raw.X, y)
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': forest.feature_importances_})
 
 
-def lightgbm_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def lightgbm_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     y = adata.obs['celltype'].values
     lgb = LGBMClassifier(n_jobs=16, random_state=0).fit(adata.raw.X, y)
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': lgb.feature_importances_})
 
 
-def xgboost_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def xgboost_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     le = LabelEncoder()
     y = le.fit_transform(adata.obs['celltype'].values)
     xgb = XGBClassifier(eval_metric='mlogloss', use_label_encoder=False, nthread=-1).fit(adata.raw.X, y)
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': xgb.feature_importances_})
 
 
-def seurat_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def seurat_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     sc.pp.highly_variable_genes(adata, flavor='seurat', n_top_genes=adata.n_vars // 2)
     return pd.DataFrame({'Gene': adata.var.dispersions_norm.index, 'Importance': adata.var.dispersions_norm})
 
 
-def seurat_v3_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def seurat_v3_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     raw_adata = adata.raw.to_adata()
     sc.pp.highly_variable_genes(raw_adata, flavor='seurat_v3', n_top_genes=adata.n_vars // 2)
     return pd.DataFrame({'Gene': raw_adata.var['variances_norm'].index, 'Importance': raw_adata.var['variances_norm']})
 
 
-def cellranger_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def cellranger_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     sc.pp.highly_variable_genes(adata, flavor='cell_ranger', n_top_genes=adata.n_vars // 2)
     return pd.DataFrame({'Gene': adata.var['dispersions_norm'].index, 'Importance': adata.var.dispersions_norm})
 
 
-def variance_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def variance_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.var(adata.raw.X, axis=0)})
 
 
-def cv2_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def cv2_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     std, mean = np.std(adata.X, axis=0), np.mean(adata.X, axis=0)
     print('Number of genes whose mean are less than 1e-4: {}'.format(np.sum(np.squeeze(mean) < 1e-4)))
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.square(std / mean)})
 
 
-def mutual_info_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def mutual_info_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     y = adata.obs['celltype'].values
     mutual_info = mutual_info_classif(adata.raw.X, y, discrete_features=False)
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': mutual_info})
 
 
-def scGeneFit(adata: ad.AnnData, n_selected_genes: int) -> Optional[pd.DataFrame]:
+def scGeneFit(adata: ad.AnnData, n_selected_genes: int) -> pd.DataFrame:
     markers = get_markers(adata.X, adata.obs['celltype'].values, n_selected_genes)
     return pd.DataFrame({'Gene': adata.var_names[markers]})
 
 
-def fisher_score_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def fisher_score_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     y = adata.obs['celltype'].values
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': fisher_score(adata.raw.X, y)})
 
 
-def nearest_shrunken_centroid_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def nearest_shrunken_centroid_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     y = adata.obs['celltype'].values
     th_dict = {'shrink_threshold': np.arange(0.0, 1.01, 0.01)}
     gs = GridSearchCV(NearestCentroid(), param_grid=th_dict, cv=3, scoring='balanced_accuracy').fit(adata.X, y)
@@ -307,7 +307,16 @@ def nearest_shrunken_centroid_compute_importance(adata: ad.AnnData) -> Optional[
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': importance})
 
 
-def random_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+def triku_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
+    if 'X_pca' not in adata.obsm:
+        sc.pp.pca(adata)
+    if 'distances' not in adata.obsp or 'connectivities' not in adata.obsp:
+        sc.pp.neighbors(adata)
+    tk.tl.triku(adata, verbose='error')  # the larger the distance, the more important the gene is
+    return pd.DataFrame({'Gene': adata.var_names, 'Importance': adata.var['triku_distance']})
+
+
+def random_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     np.random.seed(base_cfg.random_seed)
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.random.rand(adata.X.shape[1])})
 

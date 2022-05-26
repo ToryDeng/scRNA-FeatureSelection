@@ -167,7 +167,7 @@ class ClusterRecorder(BasicExperimentRecorder):
     def __check_fs_methods_all_unsupervised(self):
         for fs_method in self.fs_methods:
             if '+' not in fs_method and fs_method not in method_cfg.unsupervised:
-                raise ValueError(f"{fs_method} not in the list of unsupervised methods in method config")
+                raise ValueError(f"{fs_method} is not in the list of unsupervised methods in method config.")
             if '+' in fs_method:
                 base_methods = fs_method.split('+')
                 if np.isin(base_methods, method_cfg.unsupervised.keys()).sum() < len(base_methods):

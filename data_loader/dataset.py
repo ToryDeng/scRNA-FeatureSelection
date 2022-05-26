@@ -11,11 +11,11 @@ from sklearn.model_selection import StratifiedKFold
 from common_utils.utils import head
 from config import data_cfg, assign_cfg
 from data_loader.utils import make_name_consistent, control_quality, sample_adata, store_markers, log_normalize, \
-    set_rare_type, complexity, show_data_info
+    set_rare_type, complexity, show_data_info, filter_futurewarning
 
 
 def _load_single_data(data_name: str) -> ad.AnnData:
-    assert data_name in data_cfg.full_dataset_names.keys(), "Wrong argument 'data_name'!"
+    assert data_name in data_cfg.full_dataset_names.keys(), f"Wrong argument 'data_name': {data_name}!"
     adata = ad.read_h5ad(data_cfg.data_path + f'{data_cfg.full_dataset_names[data_name]}.h5ad')
     # convert csr_matrix to ndarray
     if isinstance(adata.X, csr_matrix):
@@ -63,6 +63,7 @@ def _load_data(data_name: str) -> ad.AnnData:
     return adata
 
 
+@filter_futurewarning
 def load_data(data_name: str) -> ad.AnnData:
     """
     load anndata object from cachedData/ directory, or the path to raw data. The adata.X is log-normalized, the raw data

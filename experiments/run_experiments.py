@@ -14,7 +14,7 @@ from selection.utils import subset_adata
 
 def run_marker_discovery(fs_methods: List[str] = method_cfg.unsupervised, use_saved_genes: bool = True):
     recorder = init_recorder(fs_methods, marker_cfg)
-    for dataset_name in marker_cfg.datasets:
+    for dataset_name in marker_cfg.PBMC_markers + marker_cfg.pancreas_markers + marker_cfg.mouse_brain_marekrs:
         adata = load_data(dataset_name)
         for fs_method in fs_methods:
             for n_genes in marker_cfg.n_genes:
