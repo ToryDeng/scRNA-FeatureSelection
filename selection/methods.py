@@ -37,9 +37,9 @@ def single_select_by_batch(adata: ad.AnnData,
     ----------
     adata: AnnData
       The AnnData object
-    method
+    method: str
       The feature selection method
-    n_selected_genes
+    n_selected_genes: int
       Number of genes to be selected
     Returns
     -------
@@ -86,12 +86,12 @@ def single_select_by_batch(adata: ad.AnnData,
     elif method == 'triku':
         selected_genes_df = triku_compute_importance(adata.copy())  # .copy() prevent modification on adata object
     elif method == 'pagest1w':
-        selected_genes = pagest(adata.copy(), n_selected_genes, 'one-way', random_stat=base_cfg.random_seed,
-                                gene_clustering='gmm', gene_cluster_score='spearman', verbose=2)
+        selected_genes = pagest(adata.raw.to_adata(), n_selected_genes, 'one-way', random_stat=base_cfg.random_seed, verbose=2,
+                                gene_clustering='leiden', gene_distance='euclidean', gene_cluster_score='spearman')
         selected_genes_df = pd.DataFrame({'Gene': selected_genes})
     elif method == 'pagest2w':
-        selected_genes = pagest(adata.copy(), n_selected_genes, 'two-way', cell_distance='euclidean', random_stat=base_cfg.random_seed,
-                                gene_clustering='gmm', gene_cluster_score='spearman', stat='kw', verbose=2)
+        selected_genes = pagest(adata.raw.to_adata(), n_selected_genes, 'two-way', n_cell_clusters=adata.obs.celltype.unique().shape[0], random_stat=base_cfg.random_seed, verbose=2,
+                                gene_clustering='leiden', gene_distance='euclidean', gene_cluster_score='spearman', stat='kw')
         selected_genes_df = pd.DataFrame({'Gene': selected_genes})
     else:
         raise NotImplementedError(f"No implementation of {method}!")
@@ -324,7 +324,7 @@ def random_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
 # R methods
 def FEAST(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     """
-    Select features by FEAST. The input anndata object contains norm and raw data. The raw data is normalized in R.
+    Select features by FEAST. The input AnnData object contains norm and raw data. The raw data is normalized in R.
 
     Parameters
     ----------
@@ -356,7 +356,7 @@ def FEAST(adata: ad.AnnData) -> Optional[pd.DataFrame]:
 
 def M3Drop_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     """
-    Select features by M3Drop. The input anndata object contains norm and raw data. The raw data is normalized in R.
+    Select features by M3Drop. The input AnnData object contains norm and raw data. The raw data is normalized in R.
 
     Parameters
     ----------

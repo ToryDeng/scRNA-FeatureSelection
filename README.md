@@ -4,7 +4,7 @@
 # scRNA-FeatureSelection
 Evaluation of several gene selection methods (including ensemble gene selection methods).
 
-## Program structure
+## Program Structure
 ```
 │  main.py
 │          
@@ -14,18 +14,22 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 │  └─preprocessedData  # store preprocessed datasets
 │                   
 ├─common_utils
+│      __init__.py
 │      utils.py           #  common utils
 │ 
-├─config                  
+├─config
+│      __init__.py                  
 │      datasets_config.py   
 │      experiments_config.py 
 │      methods_config.py
 │      
 ├─data_loader
+│      __init__.py
 │      dataset.py         # load and preprocess datasets
 │      utils.py           # utils used in loading and preprocessing data
 │      
 ├─experiments
+│      __init__.py
 │      metrics.py         # metrics used in batch correction, cell classification and cell clustering
 │      recorders.py       # record the evaluation results and sink them to disk
 │      run_experiments.py # run each experiment by calling the corresponding function
@@ -33,67 +37,64 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 ├─figures                 # store the umap and t-sne figures
 │      
 ├─other_steps
+│      __init__.py
 │      classification.py  # cell classification algorithms
 │      clustering.py      # cell clustering algorithms
 │      correction.py      # batch correction algorithms
 │      
 ├─records                 # store the evaluation results and recorders
 └─selection
+        __init__.py
         fisher_score.py
         methods.py        # all feature selection algorithms
         nearest_centroid.py
-        scgenefit.py
         utils.py          # utils used in feature selection
 ```
 
-## Included methods
+## Included Methods
 | Method | Classification  | Clustering |  Language  |  Reference |
 | :----: | :-------------: | :--------: | :--------: | :--------: |
-| Random Forest | ✔ | ❌ | Python | - |
-| XGBoost    | ✔ | ❌ | Python | - |
-| LigthtGBM   | ✔ | ❌ | Python | - |
-| Variance    | ✔ | ✔ | Python | - |
-| CV2         | ✔ | ✔ | Python | - |
-| Nearest Shrunken Centroid | ✔ | ❌ | Python | [1] |
-| Seurat       | ✔ | ✔ | Python | [2] |
-| Deviance     | ✔ | ✔ | R | [3] |
-| M3Drop       | ✔ | ✔ | R | [4] |
-| scmap        | ✔ | ✔ | R | [5] |
-| scGeneFit    | ✔ | ❌ | Python | [6] |
-| CellRanger   | ✔ | ✔ |  Python | [7] |
-| Fisher Score | ✔ | ❌ | Python | [8] |
-| FEAST        | ✔ | ✔ |  R     |  [9] |
+| Random Forest | ✔ | ❌ | Python | [[1]](https://doi.org/10.1186/1471-2105-7-3) |
+| XGBoost     | ✔ | ❌ | Python | [[2]](https://doi.org/10.1145/2939672.2939785) |
+| LightGBM    | ✔ | ❌ | Python | [[3]](https://papers.nips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html) |
+| Variance    | ✔ | ✔ | Python | [[4]](https://doi.org/10.1038/s41586-020-2649-2) |
+| CV2         | ✔ | ✔ | Python | [[4]](https://doi.org/10.1038/s41586-020-2649-2) |
+| Nearest Shrunken Centroid | ✔ | ❌ | Python | [[5]](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.565.4073&rep=rep1&type=pdf) |
+| Seurat       | ✔ | ✔ | Python | [[6]](https://doi.org/10.1016/j.cell.2019.05.031) |
+| Deviance     | ✔ | ✔ | R | [[7]](https://doi.org/10.1186/s13059-019-1861-6) |
+| M3Drop       | ✔ | ✔ | R | [[8]](https://doi.org/10.1093/bioinformatics/bty1044) |
+| scmap        | ✔ | ✔ | R | [[9]](https://doi.org/10.1038/nmeth.4644) |
+| scGeneFit    | ✔ | ❌ | Python | [[10]](https://doi.org/10.1038/s41467-021-21453-4) |
+| CellRanger   | ✔ | ✔ |  Python | [[11]](https://doi.org/10.1038/ncomms14049) |
+| Fisher Score | ✔ | ❌ | Python | [[12]](http://dx.doi.org/10.4238/gmr.15028798) |
+| FEAST        | ✔ | ✔ |  R     |  [[13]](https://doi.org/10.1093/bib/bbab034) |
+| Mutual Information| ✔ | ❌ | Python  | [[14]](https://doi.org/10.1016/j.neucom.2008.04.005) |
+| scran        | ✔ | ✔ |  R     | [[15]](https://doi.org/10.1186/s13059-016-0947-7) |
+| triku        | ✔ | ✔ | Python | [[16]](https://doi.org/10.1093/gigascience/giac017) |
+| pagest       | ✔ | ✔ | Python |     |
 
-
-
-## Quality control
+## Quality Control
 The function that detects ouliers in [Besca](https://bedapub.github.io/besca/preprocessing/besca.pp.valOutlier.html).
 
 ## Normalization
 The normalization method in Seurat and the implementation in [Scanpy](https://scanpy.readthedocs.io/en/latest/generated/scanpy.pp.recipe_seurat.html).
 
-
-## Examples
-### Specify the paths to data and marker genes
-Before the evaluation you should specify the paths to data and marker genes in `config/datasets_config.py`:
+## Reproduce Our Results
+Before the evaluation you should specify the paths to data (and marker genes if you want to run the marker discovery experiment) in `config/datasets_config.py`:
 ```python
-self.data_path = "/your/path/to/datasets/"
-self.marker_path = "/your/path/to/marker/genes/"
+class DatasetConfig:
+    def __init__(self):
+        self.data_path = "/path/to/datasets/"
+        self.marker_path = "/path/to/marker/genes/"  # optional
 ```
-
-### Evaluation of single gene selection method
+Then you can run certain experiment with one line of code:
 ```python
-from experiments.run_experiments import run_cell_clustering
+from experiments.run_experiments import run_cell_clustering, run_cell_classification
 
-run_cell_clustering(fs_methods=['var', 'feast'])
+run_cell_clustering(fs_methods=['var', 'feast'])  # single FS methods
+run_cell_classification(fs_methods=['lgb+rf'])  # ensemble FS method
 ```
-### Evaluation of ensemble gene selection method
-```python
-from experiments.run_experiments import run_cell_classification
-
-run_cell_classification(fs_methods=['lgb+rf'])
-```
-All the records will be stored in the directory `records/`. The recorders are in `records/pkl/`, and the tables are in `records/xlsx/`.
+All the records will be stored in the directory `records/`. The recorders in `.pkl` format are in `records/pkl/`, and the tables are in `records/xlsx/`.
 
 ## Evaluating new feature selection methods step by step
 Here we present an easy way to evaluate new feature selection methods on all datasets we used. if you just
@@ -109,8 +110,8 @@ want to test on a few datasets, please check the [notebook](https://github.com/T
    else:
        raise NotImplementedError(f"No implementation of {method}!")
    ```
-    - ***input*** of your new functions: an `anndata` object, in whcih the `anndata.X` is the log-normalized data, 
-    the `anndata.raw` is the  data after quality control but before normalization, and the normalized data is in `adata.layers['normalized']`.
+    - ***input*** of your new functions: an `AnnData` object, in whcih the `AnnData.X` is the log-normalized data, 
+    the `AnnData.raw` is the  data after quality control but before normalization, and the normalized data is in `adata.layers['normalized']`.
     - ***output*** of your new functions: a dataframe. The first column with name `Gene` contains gene names. The second column
     is not necessary. It contains scores of each genes (if they exist). The higher the score is, the more important the gene.
     

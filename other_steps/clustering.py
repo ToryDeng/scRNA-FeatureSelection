@@ -21,7 +21,7 @@ def cluster_cells(adata: ad.AnnData):
     Parameters
     ----------
     adata
-      the anndata to be clustered
+      the AnnData to be clustered
     Returns
     -------
     None
@@ -56,7 +56,7 @@ def SHARP_clustering(adata: ad.AnnData, random_seed: int = 0):
     Parameters
     ----------
     adata : ad.AnnData
-      anndata object containing raw counts and cell types
+      AnnData object containing raw counts and cell types
     random_seed
       seed used to generate fixed numbers
     Returns
@@ -87,7 +87,7 @@ def Seurat_v4_clustering(adata: ad.AnnData):
     Parameters
     ----------
     adata : ad.AnnData
-      anndata object containing raw counts and cell types
+      AnnData object containing raw counts and cell types
     Returns
     -------
     result : np.ndarray
@@ -125,7 +125,7 @@ def SC3s_clustering(adata: ad.AnnData, random_seed: int = 0):
     Parameters
     ----------
     adata : ad.AnnData
-      anndata object containing normalized data and cell types
+      AnnData object containing normalized data and cell types
     random_seed
       seed used to generate fixed numbers
     Returns
@@ -151,7 +151,7 @@ def SC3_clustering(adata: ad.AnnData, random_seed: int = 0):
     Parameters
     ----------
     adata : ad.AnnData
-      anndata object containing raw counts and cell types
+      AnnData object containing raw counts and cell types
     random_seed
       seed used to generate fixed numbers
     Returns

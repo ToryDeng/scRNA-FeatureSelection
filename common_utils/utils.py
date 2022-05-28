@@ -60,7 +60,7 @@ def plot_2D(combined_adata: ad.AnnData,
     Parameters
     ----------
     combined_adata
-      the anndata object containing multiple batches
+      the AnnData object containing multiple batches
     fs_method
       the feature selection method
     bc_method

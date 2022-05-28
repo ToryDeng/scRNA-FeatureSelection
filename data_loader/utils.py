@@ -25,9 +25,9 @@ def complexity(adata: ad.AnnData, use_raw: bool = False):
     Parameters
     ----------
     adata
-      anndata object
+      The AnnData object
     use_raw
-      whether to use raw data
+      Whether to use raw data
     Returns
     -------
     complexity
@@ -57,14 +57,12 @@ def clean_var_names(gene_names: Union[pd.Index, np.ndarray]) -> np.ndarray:
 
 def make_name_consistent(adata: ad.AnnData):
     """
-    rename the columns in adata.obs and make obs and var names unique.
+    Rename the columns in adata.obs and make obs and var names unique.
+
     Parameters
     ----------
     adata
-        anndata object
-    Returns
-    -------
-    inplace, return None
+        The AnnData object
     """
     # rename genes
     adata.var['original_gene'] = adata.var_names
@@ -91,6 +89,19 @@ def make_name_consistent(adata: ad.AnnData):
 
 
 def control_quality(adata: ad.AnnData) -> ad.AnnData:
+    """
+    Filter cells with unclear cell types, which are specified in `data_cfg.remove_types`,
+    and filter low-quality cells and genes.
+
+    Parameters
+    ----------
+    adata
+      The AnnData object
+    Returns
+    -------
+    adata
+      The AnnData object after quality control
+    """
     # filter unclear cells
     adata = adata[~adata.obs['celltype'].isin(data_cfg.remove_types)].copy()
 
@@ -109,12 +120,12 @@ def control_quality(adata: ad.AnnData) -> ad.AnnData:
 
 def log_normalize(adata: ad.AnnData):
     """
-    log-Normalize and scale data
+    Log-normalize and scale the data.
 
     Parameters
     ----------
     adata
-      anndata object
+      AnnData object
 
     Returns
     -------
@@ -135,12 +146,12 @@ def log_normalize(adata: ad.AnnData):
 
 def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnData:
     """
-    sample the cells or genes from adata
+    Sample the cells or genes from adata.
 
     Parameters
     ----------
     adata
-      the anndata object
+      the AnnData object
     sample_source
       which dimension to sample from (cells or genes)
     number
@@ -148,7 +159,7 @@ def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnDa
     Returns
     -------
     adata
-     the sampled anndata
+     the sampled AnnData
     """
     if sample_source != '' and number != '':
         if sample_source == 'cells':
@@ -162,6 +173,8 @@ def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnDa
         raise ValueError("You did not specify the number of sample!")
     elif sample_source == '' and number != '':
         raise ValueError("You did not specify the source of samples!")
+    else:
+        pass
     return adata
 
 
@@ -184,15 +197,12 @@ def load_markers(marker_type: Literal['PBMC', 'SimPBMCsmall', 'pancreas', 'brain
 
 def store_markers(adata: ad.AnnData):
     """
-    load and store marker genes (if the dataset has) in adata.
+    Load and store marker genes (if the dataset has) in adata.
 
     Parameters
     ----------
     adata
-      the anndata object
-    Returns
-    -------
-    None
+      the AnnData object
     """
     if 'data_name' in adata.uns:
         panglao, cellmarker = None, None
@@ -236,6 +246,15 @@ def set_rare_type(adata: ad.AnnData):
 
 
 def show_data_info(adata: ad.AnnData):
+    """
+    Print information about dataset: number of cells, number of genes, number of cell types, rare cell type (if exists),
+    dataset complexity, and number of batches (if exists).
+
+    Parameters
+    ----------
+    adata
+      The AnnData object
+    """
     console.print(f"Dataset [red]{adata.uns['data_name']}[/red] has [blue]{adata.n_obs}[/blue] cells, "
                   f"[blue]{adata.n_vars}[/blue] genes "
                   f"and [blue]{adata.obs['celltype'].unique().shape[0]}[/blue] classes after filtering.")

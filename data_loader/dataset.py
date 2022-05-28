@@ -37,7 +37,7 @@ def _load_data(data_name: str) -> ad.AnnData:
 
     Returns
     -------
-    anndata object with raw_data, norm_data and markers in data, or the concatenated batch data
+    AnnData object with raw_data, norm_data and markers in data, or the concatenated batch data
     """
     if '+' not in data_name:
         dataset, number, sample_from = re.match(r"([a-zA-Z]*)([0-9]*)([a-zA-Z]*)?", data_name).groups()
@@ -53,7 +53,7 @@ def _load_data(data_name: str) -> ad.AnnData:
         store_markers(adata)
         # store raw data
         adata.raw = adata
-        # log-normalize anndata
+        # log-normalize adata
         log_normalize(adata)
     else:
         batch_names = data_name.split('+')
@@ -66,7 +66,7 @@ def _load_data(data_name: str) -> ad.AnnData:
 @filter_futurewarning
 def load_data(data_name: str) -> ad.AnnData:
     """
-    load anndata object from cachedData/ directory, or the path to raw data. The adata.X is log-normalized, the raw data
+    Load AnnData object from cachedData/ directory, or the path to raw data. The adata.X is log-normalized, the raw data
     is stored in adata.raw, and the normalized data (without logarithm) is stored in adata.layers['normalized']
 
     Parameters
@@ -77,7 +77,7 @@ def load_data(data_name: str) -> ad.AnnData:
     Returns
     -------
     adata
-      anndata object with raw_data, norm_data and markers in data, or the concatenated batch data
+      AnnData object with raw_data, norm_data and markers in data, or the concatenated batch data
     """
     file_name = data_name + '.h5ad'
     file_dir = os.path.join(data_cfg.cache_path, 'preprocessedData')
@@ -106,7 +106,7 @@ def yield_train_test_data(adata: ad.AnnData):
     Parameters
     ----------
     adata
-      the anndata object. For inter-dataset classification, it contains adata.obs['batch']
+      the AnnData object. For inter-dataset classification, it contains adata.obs['batch']
     Returns
     -------
     data_generator

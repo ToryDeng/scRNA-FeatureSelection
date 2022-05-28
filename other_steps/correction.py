@@ -27,7 +27,7 @@ def correct_batch_effect(adata: ad.AnnData, method: Literal['Seurat_v4']) -> ad.
 
 def Seurat_v4_correct(adata: ad.AnnData) -> ad.AnnData:
     """
-    Correct the anndata using Seurat v4
+    Correct the AnnData using Seurat v4
 
     Parameters
     ----------

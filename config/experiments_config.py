@@ -29,12 +29,13 @@ class CellClassificationConfig(BasicExperimentConfig):
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['Ariss', 'Adam', 'BachDonorTwo', 'BachDonorThree', 'BachDonorFour',
-                         'BaronHumanDonorTwo', 'ChenHungry', 'ChenHungryTwo', 'ChenNormal',
-                         'Plasschaert', 'HochaneDonorTwo', 'HochaneDonorFour', 'Guo',
+        self.datasets = ['Guo',
                          'PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim',
-                         'QuakeTracheaDonorFS', 'QuakeTracheaDonorSE', 'ToschesLizard', 'Zhao',
+                         'QuakeTracheaDonorFS', 'ToschesLizard', 'Zhao',
                          'QuakeSpleenDonorFS', 'QuakeSpleenDonorE']
+        # 'Ariss', 'Adam',
+        # 'BaronHumanDonorTwo', 'ChenHungry', 'ChenHungryTwo', 'ChenNormal',
+        # 'Plasschaert', 'HochaneDonorTwo', 'HochaneDonorFour',
 
         self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs  # , 'SC3s': 1
         self.metrics = ['ARI', 'V', 'bcubed']

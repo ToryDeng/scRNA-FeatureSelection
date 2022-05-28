@@ -17,7 +17,7 @@ def save_genes(adata: ad.AnnData, method: str, selected_df: pd.DataFrame):
     Parameters
     ----------
     adata
-      anndata object
+      AnnData object
     method
       the feature selection method
     selected_df
@@ -41,7 +41,7 @@ def is_saved(adata: ad.AnnData, method: str, n_genes: int):
     Parameters
     ----------
     adata
-      anndata object
+      AnnData object
     method
       the feature selection method
     n_genes
@@ -63,7 +63,7 @@ def load_genes(adata: ad.AnnData, method: str, n_genes: int):
     Parameters
     ----------
     adata
-      anndata object
+      AnnData object
     method
       the feature selection method
     n_genes

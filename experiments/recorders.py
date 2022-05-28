@@ -118,7 +118,7 @@ class AssignRecorder(BasicExperimentRecorder):
 
     def extend_record_table(self, adata: ad.AnnData):
         if not self.config.is_intra:
-            assert 'batch' in adata.obs, "No batch in anndata!"
+            assert 'batch' in adata.obs, "No batch in AnnData!"
             datasets = [' to '.join([train_name, test_name]) for train_name, test_name in
                         permutations(adata.obs['batch'].unique(), 2)]
             part = self._create_record_table(
