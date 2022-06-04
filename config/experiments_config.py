@@ -3,7 +3,7 @@ class BasicExperimentConfig:
         self.random_seed = 2022
         self.scale_factor = 1e4  # normalization
         self.ensemble_mode = 'count_sum'  # ensemble selection
-        self.n_genes = [500, 1000, 1500, 2000]  # selected genes  
+        self.n_genes = [250, 500]  # selected genes  , 1000, 1500, 2000
         self.sink_dir = 'records/'
 
 
@@ -29,13 +29,15 @@ class CellClassificationConfig(BasicExperimentConfig):
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['Guo',
-                         'PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim',
-                         'QuakeTracheaDonorFS', 'ToschesLizard', 'Zhao',
-                         'QuakeSpleenDonorFS', 'QuakeSpleenDonorE']
-        # 'Ariss', 'Adam',
+        self.datasets = ['PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim',
+                         'Adam', 'Chen', 'Guo', 'Plasschaert', 'QuakeTrachea', 'ToschesLizard',
+                         'PBMCeightkilo', 'PBMCsevenkilo', 'ZeiselBrain', 'ZilionisLung']
+        # 'PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim',
+        # 'Ariss', 'Adam', 'Guo',
         # 'BaronHumanDonorTwo', 'ChenHungry', 'ChenHungryTwo', 'ChenNormal',
         # 'Plasschaert', 'HochaneDonorTwo', 'HochaneDonorFour',
+        # 'QuakeTracheaDonorFS', 'ToschesLizard', 'Zhao',
+        # 'QuakeSpleenDonorFS', 'QuakeSpleenDonorE', 'ZeiselBrain', 'ZilionisLung', 'PBMCsevenkilo', 'PBMCeightkilo'
 
         self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs  # , 'SC3s': 1
         self.metrics = ['ARI', 'V', 'bcubed']

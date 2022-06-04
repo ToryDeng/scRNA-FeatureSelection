@@ -1,11 +1,14 @@
 import os
 import shutil
+import traceback
 from typing import Union, List
 
 import anndata as ad
+import anndata2ri
 import numpy as np
 import pandas as pd
 
+from common_utils.utils import HiddenPrints
 from config import data_cfg
 from console import console
 
@@ -117,3 +120,16 @@ def subset_adata(adata: ad.AnnData, selected_genes: Union[np.ndarray, pd.Index],
         copied_adata = adata.copy()
         subset_adata(copied_adata, selected_genes, inplace=True)
         return copied_adata
+
+
+def rpy2_wrapper(func):
+    def wrapper(*args, **kwargs):
+        try:
+            # with HiddenPrints():
+            anndata2ri.activate()
+            res = func(*args, **kwargs)
+            anndata2ri.deactivate()
+            return res
+        except:
+            traceback.print_exc()
+    return wrapper

@@ -71,6 +71,8 @@ Evaluation of several gene selection methods (including ensemble gene selection 
 | Mutual Information| ✔ | ❌ | Python  | [[14]](https://doi.org/10.1016/j.neucom.2008.04.005) |
 | scran        | ✔ | ✔ |  R     | [[15]](https://doi.org/10.1186/s13059-016-0947-7) |
 | triku        | ✔ | ✔ | Python | [[16]](https://doi.org/10.1093/gigascience/giac017) |
+| sctransform  | ✔ | ✔ |    R   | [[17]](https://doi.org/10.1186/s13059-021-02584-9) |
+| GiniClust3   | ✔ | ✔ | Python |  [[18]](https://doi.org/10.1186/s12859-020-3482-1) |
 | pagest       | ✔ | ✔ | Python |     |
 
 ## Quality Control

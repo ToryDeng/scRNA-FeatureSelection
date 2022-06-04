@@ -86,14 +86,19 @@ def run_cell_classification(fs_methods: List[str] = method_cfg.unsupervised + me
         recorder.sink()
 
 
-def run_cell_clustering(fs_methods: List[str] = method_cfg.unsupervised, use_saved_genes: bool = True):
+def run_cell_clustering(
+        fs_methods: List[str] = method_cfg.unsupervised,
+        use_saved_genes: bool = True,
+        all_genes: bool = True
+):
     recorder = init_recorder(fs_methods, cluster_cfg)
     for dataset_name in cluster_cfg.datasets:
         adata = load_data(dataset_name)
         # baseline: all genes;
-        cluster_cells(adata)
-        baseline_results = clustering_metrics(adata)
-        recorder.record(dataset_name, 'AllGenes', baseline_results)
+        if all_genes:
+            cluster_cells(adata)
+            baseline_results = clustering_metrics(adata)
+            recorder.record(dataset_name, 'AllGenes', baseline_results)
         for fs_method in fs_methods:
             for n_genes in cluster_cfg.n_genes:
                 try:

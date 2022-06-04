@@ -31,6 +31,8 @@ class DatasetConfig:
             'Hochane': 'Hochane',
             'HochaneDonorTwo': 'Hochane_donor2',
             'HochaneDonorFour': 'Hochane_donor4',
+            'PBMCsevenkilo': 'PBMC7k',
+            'PBMCeightkilo': 'PBMC8k',
             'PBMCSLEA': 'PBMCSLEA',
             'PBMCSLEB': 'PBMCSLEB',
             'PBMCSLEC': 'PBMCSLEC',
@@ -45,7 +47,9 @@ class DatasetConfig:
             'QuakeSpleenDonorE': 'QuakeSpleen_3-M-8',
             'Shekhar': 'Shekhar',
             'ToschesLizard': 'ToschesLizard',
-            'Zhao': 'ZhaoImmuneLiver'
+            'ZeiselBrain': 'ZeiselBrain',
+            'Zhao': 'ZhaoImmuneLiver',
+            'ZilionisLung': 'ZilionisLung'
         }
 
         # remove_types in pancreas data

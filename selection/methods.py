@@ -1,4 +1,5 @@
 import datetime
+import math
 import traceback
 from collections import defaultdict, Counter
 from typing import Optional, List
@@ -20,11 +21,11 @@ from sklearn.neighbors import NearestCentroid
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
-from common_utils.utils import HiddenPrints
 from config import base_cfg
 from selection.fisher_score import fisher_score
+from selection.giniclust3 import loessRegression, giniIndex
 from selection.nearest_centroid import nearest_centroid_select
-from selection.utils import is_saved, load_genes, save_genes, subset_adata
+from selection.utils import is_saved, load_genes, save_genes, subset_adata, rpy2_wrapper
 
 
 def single_select_by_batch(adata: ad.AnnData,
@@ -85,18 +86,22 @@ def single_select_by_batch(adata: ad.AnnData,
         selected_genes_df = scran(adata)
     elif method == 'triku':
         selected_genes_df = triku_compute_importance(adata.copy())  # .copy() prevent modification on adata object
+    elif method == 'sct':
+        selected_genes_df = sctransform_compute_importance(adata.copy())
+    elif method == 'giniclust3':
+        selected_genes_df = giniclust3_compute_importance(adata)
     elif method == 'pagest1w':
         selected_genes = pagest(adata.raw.to_adata(), n_selected_genes, 'one-way', random_stat=base_cfg.random_seed, verbose=2,
-                                gene_clustering='leiden', gene_distance='euclidean', gene_cluster_score='spearman')
+                                gene_clustering='gmm', n_gene_clusters=200, gene_cluster_score='spearman')
         selected_genes_df = pd.DataFrame({'Gene': selected_genes})
     elif method == 'pagest2w':
         selected_genes = pagest(adata.raw.to_adata(), n_selected_genes, 'two-way', n_cell_clusters=adata.obs.celltype.unique().shape[0], random_stat=base_cfg.random_seed, verbose=2,
-                                gene_clustering='leiden', gene_distance='euclidean', gene_cluster_score='spearman', stat='kw')
+                                gene_clustering='leiden', gene_distance='spearman', gene_cluster_score='spearman', stat='kw')
         selected_genes_df = pd.DataFrame({'Gene': selected_genes})
     else:
         raise NotImplementedError(f"No implementation of {method}!")
 
-    # rank features if importances exist
+    # rank features if importance exist
     selected_genes_df.dropna(inplace=True)
     if selected_genes_df.shape[1] == 1:  # doesn't have importances, only genes
         selected_genes_df.rename(columns={selected_genes_df.columns[0]: 'Gene'}, inplace=True)
@@ -273,11 +278,11 @@ def cellranger_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
 
 
 def variance_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
-    return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.var(adata.raw.X, axis=0)})
+    return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.var(adata.layers['log-normalized'], axis=0)})
 
 
 def cv2_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
-    std, mean = np.std(adata.X, axis=0), np.mean(adata.X, axis=0)
+    std, mean = np.std(adata.layers['log-normalized'], axis=0), np.mean(adata.layers['log-normalized'], axis=0)
     print('Number of genes whose mean are less than 1e-4: {}'.format(np.sum(np.squeeze(mean) < 1e-4)))
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.square(std / mean)})
 
@@ -321,7 +326,19 @@ def random_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.random.rand(adata.X.shape[1])})
 
 
+def giniclust3_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
+    geneGini, geneMax = giniIndex(adata.layers['normalized'].T)
+    geneGini, geneLabel = np.array(geneGini), adata.var.index.tolist()
+    logGeneMax = np.array(list(map(lambda x: math.log(x + 0.1, 2), geneMax)))
+    _, sigGiniPvalue = loessRegression(geneGini, logGeneMax, geneLabel)
+    result = pd.DataFrame.from_dict(sigGiniPvalue, orient='index', columns=['p.value']).reset_index()
+    result['Importance'] = 1 - result['p.value']
+    result.drop(columns=['p.value'], inplace=True)
+    return result
+
+
 # R methods
+@rpy2_wrapper
 def FEAST(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     """
     Select features by FEAST. The input AnnData object contains norm and raw data. The raw data is normalized in R.
@@ -335,25 +352,20 @@ def FEAST(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     A 1-column dataframe. The sole column contains genes sorted according to their F scores.
     The top genes are the most important.
     """
-    try:
-        with HiddenPrints():
-            anndata2ri.activate()
-            importr('FEAST')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
-            r("""
-            Y <- process_Y(assay(sce, 'X'), thre = 2)
-            Ynorm <- Norm_Y(Y)
-            n_classes <- dim(unique(colData(sce)['celltype']))[1]
-            rm(sce)
-            idxs = FEAST_fast(Ynorm, k = n_classes)
-            """)
-            result = r("data.frame(Gene=rownames(Y)[idxs])")
-            anndata2ri.deactivate()
-        return result
-    except:
-        traceback.print_exc()
+    importr('FEAST')
+    globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+    r("""
+    Y <- process_Y(assay(sce, 'X'), thre = 2)
+    Ynorm <- Norm_Y(Y)
+    n_classes <- dim(unique(colData(sce)['celltype']))[1]
+    rm(sce)
+    idxs = FEAST_fast(Ynorm, k = n_classes)
+    """)
+    result = r("data.frame(Gene=rownames(Y)[idxs])")
+    return result
 
 
+@rpy2_wrapper
 def M3Drop_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     """
     Select features by M3Drop. The input AnnData object contains norm and raw data. The raw data is normalized in R.
@@ -367,74 +379,63 @@ def M3Drop_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     result
       A dataframe. The first column contains gene names, and the second column contains 1 - p.value.
     """
-    try:
-        with HiddenPrints():
-            anndata2ri.activate()
-            importr('M3Drop')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
-            r("""
-            norm <- M3DropConvertData(assay(sce, 'X'), is.counts=TRUE)
-            DE_genes <- M3DropFeatureSelection(norm, mt_method="fdr", mt_threshold=1, suppress.plot = TRUE)
-            """)
-            result = r("DE_genes").drop(columns=['effect.size', 'q.value'])
-            result['Importance'] = 1 - result['p.value']
-            result.drop(columns=['p.value'], inplace=True)
-            anndata2ri.deactivate()
-            return result
-    except:
-        traceback.print_exc()
+    importr('M3Drop')
+    globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+    r("""
+    norm <- M3DropConvertData(assay(sce, 'X'), is.counts=TRUE)
+    DE_genes <- M3DropFeatureSelection(norm, mt_method="fdr", mt_threshold=1, suppress.plot = TRUE)
+    """)
+    result = r("DE_genes").drop(columns=['effect.size', 'q.value'])
+    result['Importance'] = 1 - result['p.value']
+    result.drop(columns=['p.value'], inplace=True)
+    return result
 
 
+@rpy2_wrapper
 def scmap_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
-    try:
-        with HiddenPrints():
-            anndata2ri.activate()
-            importr('scmap')
-            importr('scater')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
-            r("""
-            counts(sce) <- as.matrix(assay(sce, 'X'))
-            sce <- logNormCounts(sce)
-            rowData(sce)$feature_symbol <- rownames(sce)
-            sce <- selectFeatures(sce, dim(sce)[1], suppress_plot = TRUE)
-            print(rowData(sce)['scmap_scores'])
-            """)
-            result = r("na.omit(rowData(sce)['scmap_scores'])")
-            anndata2ri.deactivate()
-        return result.reset_index()  # index  scmap_scores
-    except:
-        traceback.print_exc()
+    importr('scmap')
+    importr('scater')
+    globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+    r("""
+    counts(sce) <- as.matrix(assay(sce, 'X'))
+    sce <- logNormCounts(sce)
+    rowData(sce)$feature_symbol <- rownames(sce)
+    sce <- selectFeatures(sce, dim(sce)[1], suppress_plot = TRUE)
+    """)
+    result = r("na.omit(rowData(sce)['scmap_scores'])").reset_index()  # index  scmap_scores
+    return result
 
 
+@rpy2_wrapper
 def deviance_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
-    try:
-        with HiddenPrints():
-            anndata2ri.activate()
-            importr('scry')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())  # deviance need raw data
-            result = r("rowData(devianceFeatureSelection(sce, assay='X'))['binomial_deviance']")
-            anndata2ri.deactivate()
-            return result.reset_index()
-    except:
-        traceback.print_exc()
+    importr('scry')
+    globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())  # deviance need raw data
+    result = r("rowData(devianceFeatureSelection(sce, assay='X'))['binomial_deviance']").reset_index()
+    return result
 
 
+@rpy2_wrapper
 def scran(adata: ad.AnnData) -> Optional[pd.DataFrame]:
-    try:
-        with HiddenPrints():
-            anndata2ri.activate()
-            importr('scuttle')
-            importr('scran')
-            globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
-            r("""
-            assay(sce, 'X') <- as.matrix(assay(sce, 'X'))
-            sce <- logNormCounts(sce, assay.type = "X")
-            HVGs <- getTopHVGs(sce)
-            """)
-            result = r("data.frame(Gene=HVGs)")
-            anndata2ri.deactivate()
-            return result
-    except:
-        traceback.print_exc()
+    importr('scuttle')
+    importr('scran')
+    globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+    r("""
+    assay(sce, 'X') <- as.matrix(assay(sce, 'X'))
+    sce <- logNormCounts(sce, assay.type = "X")
+    HVGs <- getTopHVGs(sce)
+    """)
+    result = r("data.frame(Gene=HVGs)")
+    return result
 
+
+@rpy2_wrapper
+def sctransform_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
+    importr('sctransform')
+    globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
+    r("""
+    data <- as(assay(sce, 'X'), "sparseMatrix")
+    res <- vst(data, method = "glmGamPoi", vst.flavor = "v2", verbosity = 0)
+    """)
+    result = r("res$gene_attr['residual_variance']").reset_index()
+    return result
 
