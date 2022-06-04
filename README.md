@@ -100,7 +100,7 @@ All the records will be stored in the directory `records/`. The recorders in `.p
 
 ## Evaluating new feature selection methods step by step
 Here we present an easy way to evaluate new feature selection methods on all datasets we used. if you just
-want to test on a few datasets, please check the [notebook](https://github.com/ToryDeng/scRNA-FeatureSelection/blob/main/feature_selection.ipynb) for examples.
+want to test on only a few datasets, please check the [notebook](https://github.com/ToryDeng/scRNA-FeatureSelection/blob/main/feature_selection.ipynb) for examples.
 1. Add new methods to the function `single_select_by_batch()` in `selection/methods.py`:
    ```python
    elif method == 'deviance':
