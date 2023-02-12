@@ -1,12 +1,17 @@
-from experiments.run_experiments import run_cell_clustering
+from experiments.run_experiments import run_cell_clustering, run_cell_classification, run_computation_time
+
+
+fs_methods = ['giniclust3', 'deviance', 'seurat_v3', 'm3drop', 'feast', 'scran', 'triku', 'var', 'sc3', 'scmap']
 
 
 run_cell_clustering(
-    fs_methods=['pagest1w'],
-    use_saved_genes=False,
-    all_genes=True
+    fs_methods=fs_methods,
+    use_saved_genes=True,
+    all_genes=False
 )
-# 'cv2', 'deviance', 'seurat_v3', 'm3drop', 'feast', 'scran', 'triku', 'sct', 'giniclust3', 'pagest1w', 'pagest2w'
-# TODO: run SCT and giniclust3
 
+# run_computation_time(fs_methods=fs_methods)
+
+# 'giniclust3', 'deviance', 'seurat_v3', 'm3drop', 'feast', 'scran', 'triku', 'var', 'sc3', 'cv', 'scmap',
+# 'pagest1w', 'pagest2w'
 

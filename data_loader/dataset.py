@@ -43,8 +43,6 @@ def _load_data(data_name: str) -> ad.AnnData:
         dataset, number, sample_from = re.match(r"([a-zA-Z]*)([0-9]*)([a-zA-Z]*)?", data_name).groups()
         adata = _load_single_data(dataset)
         make_name_consistent(adata)
-        if dataset == 'Vento':  # at least 2 samples are in dataset, for computation time test
-            adata = adata[adata.obs['celltype'].isin(adata.obs['celltype'].value_counts().index[:12].to_numpy()), :]
         # quality control
         adata = control_quality(adata)
         # sampling
@@ -92,7 +90,7 @@ def load_data(data_name: str) -> ad.AnnData:
             os.makedirs(file_dir)
         adata.write_h5ad(os.path.join(file_dir, file_name))
     adata.uns['data_name'] = data_name
-    adata.uns['data_complexity'] = complexity(adata, use_raw=True)  # use adata.X
+    adata.uns['data_complexity'] = complexity(adata, use_raw=True)
     show_data_info(adata)
     return adata
 
@@ -124,6 +122,8 @@ def yield_train_test_data(adata: ad.AnnData):
             train_mask, test_mask = adata.obs['batch'] == train_batch, adata.obs['batch'] == test_batch
             train_idx, test_idx = indices[train_mask], indices[test_mask]
             train_data, test_data = adata[train_idx].copy(), adata[test_idx].copy()
+            train_data.obs.drop(columns=['batch'], inplace=True)  # training set and test set are complete datasets in
+            test_data.obs.drop(columns=['batch'], inplace=True)  # inter-dataset classification
             name = ' to '.join([train_batch, test_batch])
             train_data.uns['data_name'], test_data.uns['data_name'] = name, name
             yield train_data, test_data

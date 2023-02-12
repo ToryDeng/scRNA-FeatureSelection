@@ -125,11 +125,11 @@ def subset_adata(adata: ad.AnnData, selected_genes: Union[np.ndarray, pd.Index],
 def rpy2_wrapper(func):
     def wrapper(*args, **kwargs):
         try:
-            # with HiddenPrints():
-            anndata2ri.activate()
-            res = func(*args, **kwargs)
-            anndata2ri.deactivate()
-            return res
+            with HiddenPrints():
+                anndata2ri.activate()
+                res = func(*args, **kwargs)
+                anndata2ri.deactivate()
+                return res
         except:
             traceback.print_exc()
     return wrapper

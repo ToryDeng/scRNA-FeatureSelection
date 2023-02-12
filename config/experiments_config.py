@@ -1,9 +1,9 @@
 class BasicExperimentConfig:
     def __init__(self):
-        self.random_seed = 2022
+        self.random_seed = 0
         self.scale_factor = 1e4  # normalization
         self.ensemble_mode = 'count_sum'  # ensemble selection
-        self.n_genes = [250, 500]  # selected genes  , 1000, 1500, 2000
+        self.n_genes = [2000, 3000, 4000, 5000]  # selected genes  , 1000, 1500, 2000
         self.sink_dir = 'records/'
 
 
@@ -18,29 +18,27 @@ class MarkerDiscoveryConfig(BasicExperimentConfig):
 class CellClassificationConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClassificationConfig, self).__init__()
-        self.methods = ['SingleR']
+        self.methods = ['scmap']  # 'SingleR', 'SVM', 'scmap'
         self.is_intra = False
         self.intra_datasets = ['PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim']
         self.n_folds = 5  # 5 folds, in intra-dataset
-        self.inter_datasets = ['PBMCSLEA+PBMCSLEB+PBMCSLEC+PBMCSLEctrl+PBMCSLEstim']
+        self.inter_datasets = ['PBMCSLEctrl+PBMCSLEstim']
         self.metrics = ['f1', 'ck']
 
 
 class CellClusteringConfig(BasicExperimentConfig):
     def __init__(self):
         super(CellClusteringConfig, self).__init__()
-        self.datasets = ['PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim',
-                         'Adam', 'Chen', 'Guo', 'Plasschaert', 'QuakeTrachea', 'ToschesLizard',
-                         'PBMCeightkilo', 'PBMCsevenkilo', 'ZeiselBrain', 'ZilionisLung']
-        # 'PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim',
-        # 'Ariss', 'Adam', 'Guo',
-        # 'BaronHumanDonorTwo', 'ChenHungry', 'ChenHungryTwo', 'ChenNormal',
-        # 'Plasschaert', 'HochaneDonorTwo', 'HochaneDonorFour',
-        # 'QuakeTracheaDonorFS', 'ToschesLizard', 'Zhao',
-        # 'QuakeSpleenDonorFS', 'QuakeSpleenDonorE', 'ZeiselBrain', 'ZilionisLung', 'PBMCsevenkilo', 'PBMCeightkilo'
+        self.datasets = [
+            'QuakeTrachea']
 
-        self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs  # , 'SC3s': 1
-        self.metrics = ['ARI', 'V', 'bcubed']
+        # 'PBMCSLEA', 'PBMCSLEB', 'PBMCSLEC', 'PBMCSLEctrl', 'PBMCSLEstim',
+        # 'Adam', 'Chen', 'Guo', 'Plasschaert', 'QuakeTrachea', 'ToschesLizard',
+        # 'PBMCeightkilo', 'PBMCsevenkilo', 'ZeiselBrain', 'ZilionisLung'
+
+        # 'Seurat_v4': 1, 'KMeans': 100, 'TSCAN': 1, 'SC3s': 100s
+        self.methods = {'Seurat_v4': 1}  # clustering_method: number of runs 'Seurat_v4', 'KMeans', 'TSCAN', 'SC3s'
+        self.metrics = ['ARI', 'V']  #, 'SI', 'NMI',
 
 
 class BatchCorrectionConfig(BasicExperimentConfig):
@@ -57,9 +55,8 @@ class BatchCorrectionConfig(BasicExperimentConfig):
 class ComputationTimeConfig(BasicExperimentConfig):
     def __init__(self):
         super(ComputationTimeConfig, self).__init__()
-        self.datasets = ['Zhao500cells', 'Zhao1000cells', 'Zhao2000cells',
-                         'Zhao5000cells', 'Zhao10000cells', 'Zhao20000cells', 'Zhao50000cells',
-                         'Guo5000genes', 'Guo10000genes', 'Guo15000genes', 'Guo20000genes']
+        self.datasets = ['Zhao500cells', 'Zhao1000cells', 'Zhao5000cells', 'Zhao10000cells', 'Zhao50000cells',
+                         'Guo5000genes', 'Guo10000genes', 'Guo15000genes', 'Guo20000genes', 'Guo25000genes']
 
 
 base_cfg = BasicExperimentConfig()

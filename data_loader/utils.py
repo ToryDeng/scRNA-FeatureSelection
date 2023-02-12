@@ -73,6 +73,7 @@ def make_name_consistent(adata: ad.AnnData):
     if 'Batch' in adata.obs:
         adata.obs.rename(columns={'Batch': 'batch'}, inplace=True)
     # replace cell types
+    adata.obs['original_celltype'] = adata.obs['celltype']
     for replaced, to_replace in data_cfg.replace_types.items():
         adata.obs['celltype'].replace(to_replace, replaced, inplace=True)
     # standardize cell types
@@ -108,8 +109,10 @@ def control_quality(adata: ad.AnnData) -> ad.AnnData:
     adata.var['SYMBOL'] = adata.var_names
     with HiddenPrints():
         min_genes, min_cells, min_counts, n_genes, percent_mito, max_counts = bc.pp.valOutlier(adata)
-        min_cells = data_cfg.force_min_cells if min_cells < data_cfg.force_min_cells else min_cells
-
+        if data_cfg.force_min_cells is not None and min_cells < data_cfg.force_min_cells:
+            min_cells = data_cfg.force_min_cells
+        if data_cfg.force_min_genes is not None and min_genes < data_cfg.force_min_genes:
+            min_genes = data_cfg.force_min_genes
         # filtering with thresholds of proportion of mitochondrial genes and the upper limit of gene counts
         adata = bc.st.filtering_mito_genes_max(adata, percent_mito, n_genes, max_counts)
         # filtering with thresholds of gene and cell counts
@@ -163,10 +166,12 @@ def sample_adata(adata: ad.AnnData, sample_source: str, number: str) -> ad.AnnDa
     """
     if sample_source != '' and number != '':
         if sample_source == 'cells':
-            adata = sc.pp.subsample(adata, n_obs=int(number), random_state=0, copy=True)
+            adata = sc.pp.subsample(adata, n_obs=int(number), random_state=base_cfg.random_seed, copy=True)
+            sc.pp.filter_genes(adata, min_cells=1)  # filter genes with no count
         elif sample_source == 'genes':
             np.random.seed(base_cfg.random_seed)
             adata = adata[:, np.random.choice(adata.n_vars, size=int(number), replace=False)]
+            sc.pp.filter_cells(adata, min_genes=1)  # filter cells with no count
         else:
             raise ValueError("You input an invalid  source to sample!")
     elif sample_source != '' and number == '':

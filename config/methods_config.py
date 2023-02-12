@@ -2,7 +2,7 @@ class MethodConfig:
     def __init__(self):
         self.formal_names = {
             'var': 'Variance',
-            'cv2': 'CV2',
+            'cv': 'CV',
             'seurat': 'Seurat',
             'seurat_v3': 'Seurat v3',
             'deviance': 'Deviance',
@@ -23,11 +23,12 @@ class MethodConfig:
             'triku': 'triku',
             'sct': 'SCTransform',
             'giniclust3': 'GiniClust3',
+            'sc3': 'SC3',
             'pagest1w': 'pagest_oneway',
             'pagest2w': 'pagest_twoway'
         }
-        self.unsupervised = ['var', 'cv2', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger',
-                             'scran', 'triku', 'sct', 'giniclust3', 'pagest1w', 'pagest2w']
+        self.unsupervised = ['var', 'cv', 'seurat', 'seurat_v3', 'deviance', 'm3drop', 'feast', 'scmap', 'cellranger',
+                             'scran', 'triku', 'sct', 'giniclust3', 'sc3', 'pagest1w', 'pagest2w']
         self.supervised = ['rf', 'lgb', 'xgb', 'nsc', 'mi', 'fisher_score', 'scGeneFit']
 
 

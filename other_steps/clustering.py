@@ -1,14 +1,13 @@
 import datetime
-import traceback
 
 import anndata as ad
 import anndata2ri
 import numpy as np
 import sc3s
 import scanpy as sc
-from rpy2.rinterface_lib.embedded import RRuntimeError
 from rpy2.robjects import r, pandas2ri, globalenv
 from rpy2.robjects.packages import importr
+from sklearn.cluster import KMeans
 
 from common_utils.utils import HiddenPrints, head
 from config import cluster_cfg
@@ -27,67 +26,65 @@ def cluster_cells(adata: ad.AnnData):
     None
     """
     for method, n_runs in cluster_cfg.methods.items():
-        try:
-            print(f"{datetime.datetime.now()}: {method} clustering starts. {adata.n_obs} cells and {adata.n_vars} genes in data...")
-            for run in range(1, n_runs + 1):
-                head(method, run)
-                if method == 'SHARP':
-                    cluster_labels = SHARP_clustering(adata, random_seed=cluster_cfg.random_seed + run)
-                elif method == 'Seurat_v4':
-                    if n_runs != 1:
-                        raise RuntimeWarning("Seurat v4 clustering is not a random algorithm...")
-                    cluster_labels = Seurat_v4_clustering(adata)
-                elif method == 'SC3':
-                    cluster_labels = SC3_clustering(adata, random_seed=cluster_cfg.random_seed + run)
-                elif method == 'SC3s':
-                    cluster_labels = SC3s_clustering(adata, random_seed=cluster_cfg.random_seed + run)
-                else:
-                    raise NotImplementedError(f"{method} has not been implemented!")
-                adata.obs[f'{method}_{run}'] = cluster_labels
-        except:
-            print(f"{method} failed.")
-            traceback.print_exc()
+        print(f"{datetime.datetime.now()}: {method} clustering starts. {adata.n_obs} cells and {adata.n_vars} genes in data...")
+        for run in range(n_runs):
+            head(method, run)
+            if method == 'SHARP':
+                cluster_labels = SHARP_clustering(adata, random_seed=cluster_cfg.random_seed + run)
+            elif method == 'Seurat_v4':
+                cluster_labels = Seurat_v4_clustering(adata, random_seed=cluster_cfg.random_seed + run)
+            elif method == 'TSCAN':
+                cluster_labels = TSCAN_clustering(adata)
+            elif method == 'CIDR':
+                cluster_labels = CIDR_clustering(adata)
+            elif method == 'KMeans':
+                cluster_labels = KMeans_clustering(adata, random_seed=cluster_cfg.random_seed + run)
+            elif method == 'SC3s':
+                cluster_labels = SC3s_clustering(adata, random_seed=cluster_cfg.random_seed + run)
+            else:
+                raise NotImplementedError(f"{method} has not been implemented!")
+            adata.obs[f'{method}_{run}'] = cluster_labels
 
 
-def SHARP_clustering(adata: ad.AnnData, random_seed: int = 0):
+def SHARP_clustering(adata: ad.AnnData, random_seed: int):
     """
-    Need raw data
+    Clustering cells using SHARP.
 
     Parameters
     ----------
     adata : ad.AnnData
       AnnData object containing raw counts and cell types
-    random_seed
-      seed used to generate fixed numbers
+    random_seed: int
+      An integer for reproducibility
+
     Returns
     -------
     result : np.ndarray
       cluster labels
     """
-    assert adata.raw is not None, "The raw counts in data must exist!"
-    raw_adata = adata.raw.to_adata()
     with HiddenPrints():
         anndata2ri.activate()
         importr('SHARP')
-        exp_frame, n_classes = pandas2ri.py2rpy(raw_adata.to_df().T), raw_adata.obs['celltype'].unique().shape[0]
-        globalenv['raw_counts'], globalenv['k'], globalenv['seed'] = exp_frame, n_classes, random_seed
-        try:
-            r("res <- SHARP(raw_counts, N.cluster = k, exp.type = 'count', rN.seed = seed)")
-        except RRuntimeError:
-            r("res <- SHARP(raw_counts, exp.type = 'count', rN.seed = seed)")
-        labekl_pred = np.squeeze(np.array(r('res$pred_clusters')))
+        globalenv['expr'] = pandas2ri.py2rpy(adata.to_df('log-normalized').T)
+        globalenv['k'] = adata.obs['celltype'].unique().shape[0]
+        globalenv['seed'] = random_seed
+        r("res <- SHARP(expr, N.cluster = k, prep = FALSE, rN.seed = seed, n.cores = 1)")
+        label_pred = np.squeeze(np.array(r('res$pred_clusters')))
         anndata2ri.deactivate()
-    return labekl_pred
+    return label_pred
 
 
-def Seurat_v4_clustering(adata: ad.AnnData):
+def Seurat_v4_clustering(adata: ad.AnnData, random_seed: int):
     """
-    Need raw data
+    Clustering cells using Seurat v4.
 
     Parameters
     ----------
     adata : ad.AnnData
       AnnData object containing raw counts and cell types
+    random_seed: int
+      An integer for reproducibility
+
     Returns
     -------
     result : np.ndarray
@@ -101,6 +98,7 @@ def Seurat_v4_clustering(adata: ad.AnnData):
         importr('future')
         importr('doParallel')
         globalenv['sce'] = anndata2ri.py2rpy(raw_adata)
+        globalenv['seed'] = random_seed
         r("""
         options(future.globals.maxSize= Inf)
         plan("multicore", workers = 6)
@@ -111,23 +109,23 @@ def Seurat_v4_clustering(adata: ad.AnnData):
         seuset <- ScaleData(object = seuset, verbose = FALSE)
         seuset <- RunPCA(object = seuset, features = rownames(seuset), verbose = FALSE)
         seuset <- FindNeighbors(object = seuset, verbose = FALSE)
-        seuset <- FindClusters(object = seuset, verbose = FALSE)
+        seuset <- FindClusters(object = seuset, random.seed = seed, verbose = FALSE)
         """)
         label_pred = np.squeeze(np.array(r('as.integer(unname(seuset$seurat_clusters))')))
         anndata2ri.deactivate()
     return label_pred
 
 
-def SC3s_clustering(adata: ad.AnnData, random_seed: int = 0):
+def SC3s_clustering(adata: ad.AnnData, random_seed: int):
     """
-    Need norm data.
+    Clustering cells using SC3s. Need normalized data.
 
     Parameters
     ----------
     adata : ad.AnnData
       AnnData object containing normalized data and cell types
-    random_seed
-      seed used to generate fixed numbers
+    random_seed: int
+      An integer for reproducibility
     Returns
     -------
     result : np.ndarray
@@ -144,38 +142,40 @@ def SC3s_clustering(adata: ad.AnnData, random_seed: int = 0):
     return pred_labels
 
 
-def SC3_clustering(adata: ad.AnnData, random_seed: int = 0):
-    """
-    Need raw data. Very slow.
+def TSCAN_clustering(adata: ad.AnnData):
+    with HiddenPrints():
+        anndata2ri.activate()
+        importr('TSCAN')
+        globalenv['expr'] = pandas2ri.py2rpy(adata.to_df('log-normalized').T)
+        globalenv['k'] = adata.obs['celltype'].unique().shape[0]
+        r("res <- exprmclust(expr, reduce = T, clusternum = k:k)")
+        label_pred = np.squeeze(np.array(r('res$clusterid')))
+        anndata2ri.deactivate()
+    return label_pred
 
-    Parameters
-    ----------
-    adata : ad.AnnData
-      AnnData object containing raw counts and cell types
-    random_seed
-      seed used to generate fixed numbers
-    Returns
-    -------
-    result : np.ndarray
-      cluster labels
-    """
-    assert adata.raw is not None, "The raw counts in data must exist!"
+
+def KMeans_clustering(adata: ad.AnnData, random_seed: int):
+    X_pca = sc.tl.pca(adata.X, return_info=False, random_state=random_seed)
+    label_pred = KMeans(n_clusters=adata.obs['celltype'].unique().shape[0], random_state=random_seed).fit_predict(X_pca)
+    return label_pred
+
+
+def CIDR_clustering(adata: ad.AnnData):
     raw_adata = adata.raw.to_adata()
     with HiddenPrints():
         anndata2ri.activate()
-        importr('SC3')
-        importr('stringr')
-        importr('scater')
-        globalenv['sce'], globalenv['seed'] = anndata2ri.py2rpy(raw_adata), random_seed
+        importr('cidr')
+        globalenv['sce'], globalenv['k'] = anndata2ri.py2rpy(raw_adata), adata.obs['celltype'].unique().shape[0]
         r("""
-        counts(sce) <- assay(sce, 'X')
-        sce <- logNormCounts(sce)
-        rowData(sce)$feature_symbol <- rownames(sce)
-        n_classes <- dim(unique(colData(sce)['celltype']))[1]
-        sink("/dev/null")
-        sce <- sc3(sce, ks=n_classes, rand_seed = seed)
-        sink()
+        sData <- scDataConstructor(assay(sce, 'X'), tagType = "raw")
+        sData <- determineDropoutCandidates(sData)
+        sData <- wThreshold(sData)
+        print('start to calculate dissimilarity...')
+        sData <- scDissim(sData, threads = 0)
+        sData <- scPCA(sData, plotPC = FALSE)
+        sData <- nPC(sData)
+        sDataC <- scCluster(object = sData, nCluster = k, nPC = sData@nPC, cMethod = "ward.D2")
         """)
-        label_pred = np.squeeze(np.array(r("colData(sce)[str_glue('sc3_{n_classes}_clusters')]")))
+        label_pred = np.squeeze(np.array(r("sDataC@clusters")))
         anndata2ri.deactivate()
     return label_pred

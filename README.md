@@ -1,10 +1,15 @@
 ![GitHub](https://img.shields.io/github/license/ToryDeng/scRNA-FeatureSelection)
 ![GitHub Repo stars](https://img.shields.io/github/stars/ToryDeng/scRNA-FeatureSelection)
 ![GitHub repo size](https://img.shields.io/github/repo-size/ToryDeng/scRNA-FeatureSelection)
+
 # scRNA-FeatureSelection
+
 Evaluation of several gene selection methods (including ensemble gene selection methods).
 
+**:bangbang:This repo is no longer being maintained. Please refer to the [new repo](https://github.com/ToryDeng/FeatureSelectionBenchmarks), which includes benchmarks of feature selection methods for both scRNA-seq and SRT.**
+
 ## Program Structure
+
 ```
 │  main.py
 │          
@@ -51,57 +56,75 @@ Evaluation of several gene selection methods (including ensemble gene selection 
         utils.py          # utils used in feature selection
 ```
 
-## Included Methods
-| Method | Classification  | Clustering |  Language  |  Reference |
-| :----: | :-------------: | :--------: | :--------: | :--------: |
-| Random Forest | ✔ | ❌ | Python | [[1]](https://doi.org/10.1186/1471-2105-7-3) |
-| XGBoost     | ✔ | ❌ | Python | [[2]](https://doi.org/10.1145/2939672.2939785) |
-| LightGBM    | ✔ | ❌ | Python | [[3]](https://papers.nips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html) |
-| Variance    | ✔ | ✔ | Python | [[4]](https://doi.org/10.1038/s41586-020-2649-2) |
-| CV2         | ✔ | ✔ | Python | [[4]](https://doi.org/10.1038/s41586-020-2649-2) |
-| Nearest Shrunken Centroid | ✔ | ❌ | Python | [[5]](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.565.4073&rep=rep1&type=pdf) |
-| Seurat       | ✔ | ✔ | Python | [[6]](https://doi.org/10.1016/j.cell.2019.05.031) |
-| Deviance     | ✔ | ✔ | R | [[7]](https://doi.org/10.1186/s13059-019-1861-6) |
-| M3Drop       | ✔ | ✔ | R | [[8]](https://doi.org/10.1093/bioinformatics/bty1044) |
-| scmap        | ✔ | ✔ | R | [[9]](https://doi.org/10.1038/nmeth.4644) |
-| scGeneFit    | ✔ | ❌ | Python | [[10]](https://doi.org/10.1038/s41467-021-21453-4) |
-| CellRanger   | ✔ | ✔ |  Python | [[11]](https://doi.org/10.1038/ncomms14049) |
-| Fisher Score | ✔ | ❌ | Python | [[12]](http://dx.doi.org/10.4238/gmr.15028798) |
-| FEAST        | ✔ | ✔ |  R     |  [[13]](https://doi.org/10.1093/bib/bbab034) |
-| Mutual Information| ✔ | ❌ | Python  | [[14]](https://doi.org/10.1016/j.neucom.2008.04.005) |
-| scran        | ✔ | ✔ |  R     | [[15]](https://doi.org/10.1186/s13059-016-0947-7) |
-| triku        | ✔ | ✔ | Python | [[16]](https://doi.org/10.1093/gigascience/giac017) |
-| sctransform  | ✔ | ✔ |    R   | [[17]](https://doi.org/10.1186/s13059-021-02584-9) |
-| GiniClust3   | ✔ | ✔ | Python |  [[18]](https://doi.org/10.1186/s12859-020-3482-1) |
-| pagest       | ✔ | ✔ | Python |     |
+## Included Feature Selection Methods
+
+### Supervised Methods
+
+| Method | Language  |  Reference |
+| :----: | :--------: | :--------: |
+| Random Forest | Python | [[1]](https://doi.org/10.1186/1471-2105-7-3) |
+| XGBoost     | Python | [[2]](https://doi.org/10.1145/2939672.2939785) |
+| LightGBM    | Python | [[3]](https://papers.nips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html) |
+| Nearest Shrunken Centroid | Python | [[4]](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.565.4073&rep=rep1&type=pdf) |
+| scGeneFit    | Python | [[5]](https://doi.org/10.1038/s41467-021-21453-4) |
+| CellRanger   | Python | [[6]](https://doi.org/10.1038/ncomms14049) |
+| Fisher Score | Python | [[7]](http://dx.doi.org/10.4238/gmr.15028798) |
+| Mutual Information| Python  | [[8]](https://doi.org/10.1016/j.neucom.2008.04.005) |
+
+### Unsupervised Methods
+
+| Method |  Language  |  Reference |
+| :----: | :--------: | :--------: |
+| Variance    | Python | [[9]](https://doi.org/10.1038/s41592-018-0229-2) |
+| CV          | Python | [[10]](https://doi.org/10.1038/s41408-018-0160-x) |
+| Seurat       | Python | [[11]](https://doi.org/10.1016/j.cell.2019.05.031) |
+| Deviance     | R | [[12]](https://doi.org/10.1186/s13059-019-1861-6) |
+| M3Drop       | R | [[13]](https://doi.org/10.1093/bioinformatics/bty1044) |
+| scmap        | R | [[14]](https://doi.org/10.1038/nmeth.4644) |
+| FEAST        | R     |  [[15]](https://doi.org/10.1093/bib/bbab034) |
+| scran        | R     | [[16]](https://doi.org/10.1186/s13059-016-0947-7) |
+| triku        | Python | [[17]](https://doi.org/10.1093/gigascience/giac017) |
+| sctransform  |   R   | [[18]](https://doi.org/10.1186/s13059-021-02584-9) |
+| GiniClust3   | Python |  [[19]](https://doi.org/10.1186/s12859-020-3482-1) |
+| pagest       | Python |     |
 
 ## Quality Control
+
 The function that detects ouliers in [Besca](https://bedapub.github.io/besca/preprocessing/besca.pp.valOutlier.html).
 
 ## Normalization
+
 The normalization method in Seurat and the implementation in [Scanpy](https://scanpy.readthedocs.io/en/latest/generated/scanpy.pp.recipe_seurat.html).
 
 ## Reproduce Our Results
+
 Before the evaluation you should specify the paths to data (and marker genes if you want to run the marker discovery experiment) in `config/datasets_config.py`:
+
 ```python
 class DatasetConfig:
     def __init__(self):
         self.data_path = "/path/to/datasets/"
         self.marker_path = "/path/to/marker/genes/"  # optional
 ```
-Then you can run certain experiment with one line of code:
+
+Then you can run certain experiment with single line of code:
+
 ```python
 from experiments.run_experiments import run_cell_clustering, run_cell_classification
 
 run_cell_clustering(fs_methods=['var', 'feast'])  # single FS methods
 run_cell_classification(fs_methods=['lgb+rf'])  # ensemble FS method
 ```
+
 All the records will be stored in the directory `records/`. The recorders in `.pkl` format are in `records/pkl/`, and the tables are in `records/xlsx/`.
 
 ## Evaluating new feature selection methods step by step
+
 Here we present an easy way to evaluate new feature selection methods on all datasets we used. if you just
-want to test on only a few datasets, please check the [notebook](https://github.com/ToryDeng/scRNA-FeatureSelection/blob/main/feature_selection.ipynb) for examples.
+want to test on only a few datasets, please check the [notebook](https://github.com/ToryDeng/scRNA-FeatureSelection/blob/main/notebooks/new_methods.ipynb) for examples.
+
 1. Add new methods to the function `single_select_by_batch()` in `selection/methods.py`:
+   
    ```python
    elif method == 'deviance':
        selected_genes_df = deviance_compute_importance(adata)
@@ -112,29 +135,33 @@ want to test on only a few datasets, please check the [notebook](https://github.
    else:
        raise NotImplementedError(f"No implementation of {method}!")
    ```
-    - ***input*** of your new functions: an `AnnData` object, in whcih the `AnnData.X` is the log-normalized data, 
-    the `AnnData.raw` is the  data after quality control but before normalization, and the normalized data is in `adata.layers['normalized']`.
-    - ***output*** of your new functions: a dataframe. The first column with name `Gene` contains gene names. The second column
-    is not necessary. It contains scores of each genes (if they exist). The higher the score is, the more important the gene.
-    
-2. Modify the method configuration `config/methods_config.py`:
-    - in `self.formal_names`
-    ```python
-    'feast': 'FEAST',
-    'abbreviation_1': 'formal_name_1',
-    'abbreviation_2': 'formal_name_2',
-    'rf+fisher_score': 'RF+\nFisher Score',
-    ```
-    - unsupervised methods should be added in `self.unsupervised`, and supervised methods should be added in `self.supervised`
-    ```python
-    self.unsupervised = ['abbreviation_1', 'var', 'cv2', ...]
-    self.supervised = ['abbreviation_2', 'rf', 'lgb', 'xgb', ...]
-    ```
-3. Then you can run the function as shown in examples!
-    ```python
-    from experiments.run_experiments import run_cell_clustering
-
-    run_cell_clustering(fs_methods=['abbreviation_1', 'abbreviation_2'])
-    ```
    
+   - ***input*** of your new functions: an `AnnData` object, in which the `adata.X` is the scaled data after log-normalization,
+     the `adata.raw` is the  data after quality control but before normalization. The log-normalized data is in `adata.layers['log-normalized']`, and the normalized data is in `adata.layers['normalized']`.
+   - ***output*** of your new functions: a dataframe. The first column with name `Gene` contains gene names. The second column
+     is not necessary. It contains scores of each genes (if they exist). The higher the score is, the more important the gene.
+2. Modify the method configuration `config/methods_config.py`:
+   
+   - in `self.formal_names`
+   
+   ```python
+   'feast': 'FEAST',
+   'abbreviation_1': 'formal_name_1',
+   'abbreviation_2': 'formal_name_2',
+   'rf+fisher_score': 'RF+\nFisher Score',
+   ```
+   
+   - unsupervised methods should be added in `self.unsupervised`, and supervised methods should be added in `self.supervised`
+   
+   ```python
+   self.unsupervised = ['abbreviation_1', 'var', 'cv2', ...]
+   self.supervised = ['abbreviation_2', 'rf', 'lgb', 'xgb', ...]
+   ```
+3. Then you can run the function as shown in examples!
+   
+   ```python
+   from experiments.run_experiments import run_cell_clustering
+   
+   run_cell_clustering(fs_methods=['abbreviation_1', 'abbreviation_2'])
+   ```
 

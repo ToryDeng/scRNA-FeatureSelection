@@ -4,7 +4,8 @@ import numpy as np
 import scanpy as sc
 import scib
 from harmonypy import compute_lisi
-from sklearn.metrics import classification_report, cohen_kappa_score, adjusted_rand_score, v_measure_score
+from sklearn.metrics import classification_report, cohen_kappa_score, adjusted_rand_score, v_measure_score, \
+    silhouette_score, normalized_mutual_info_score
 
 from common_utils.utils import HiddenPrints
 from config import BatchCorrectionConfig, assign_cfg, cluster_cfg
@@ -67,22 +68,28 @@ def classification_metrics(test_adata: ad.AnnData):
 
 
 def clustering_metrics(adata: ad.AnnData):
-    assert adata.obs.columns.str.endswith('_1').sum() >= 1, "Run at least once for certain clustering algorithm!"
+    assert adata.obs.columns.str.endswith('_0').sum() >= 1, "Run at least once for certain clustering algorithm!"
     clustering_result = dict()
 
     for method, n_runs in cluster_cfg.methods.items():
         per_method = dict()
-        for run in range(1, n_runs + 1):
+        for run in range(n_runs):
             labels_true, labels_pred = adata.obs['celltype'].values, adata.obs[f'{method}_{run}'].values
             if 'ARI' in cluster_cfg.metrics:
                 per_method[f'ARI_{run}'] = adjusted_rand_score(labels_true, labels_pred)
             if 'V' in cluster_cfg.metrics:
                 per_method[f'V_{run}'] = v_measure_score(labels_true, labels_pred)
+            if 'NMI' in cluster_cfg.metrics:
+                per_method[f'NMI_{run}'] = normalized_mutual_info_score(labels_true, labels_pred)
+            if 'SI' in cluster_cfg.metrics:
+                if 'X_pca' in adata.obsm:
+                    del adata.obsm['X_pca']  # do pca anyway
+                sc.pp.pca(adata)
+                per_method[f'SI_{run}'] = silhouette_score(adata.obsm['X_pca'], labels_pred)
             if 'bcubed' in cluster_cfg.metrics:
                 if 'rare_type' in adata.uns:
                     per_method[f'bcubed_{run}'] = BCubed_fbeta_score(adata, f'{method}_{run}', True)
         clustering_result[method] = per_method
     return clustering_result
-
 
 

@@ -112,7 +112,8 @@ class AssignRecorder(BasicExperimentRecorder):
         self.fs_methods = fs_methods
         if self.config.is_intra:
             self.classification = self._create_record_table(
-                config.intra_datasets, range(1, config.n_folds + 1), config.n_genes + ['AllGenes'], config.methods, config.metrics,
+                config.intra_datasets, range(1, config.n_folds + 1), config.n_genes + ['AllGenes'], config.methods,
+                config.metrics,
                 fs_methods=fs_methods
             )
 
@@ -126,7 +127,8 @@ class AssignRecorder(BasicExperimentRecorder):
                 fs_methods=self.fs_methods
             )
 
-            self.classification = pd.concat([self.classification, part]).sort_index() if hasattr(self, 'classification') else part
+            self.classification = pd.concat([self.classification, part]).sort_index() if hasattr(self,
+                                                                                                 'classification') else part
         else:
             pass
 
@@ -159,7 +161,7 @@ class ClusterRecorder(BasicExperimentRecorder):
 
     def extend_record_table(self, dataset: str, n_genes: Union[int, str], clustering_method: str):
         part = self._create_record_table(
-            dataset, n_genes, clustering_method, range(1, self.config.methods[clustering_method]), self.config.metrics,
+            dataset, n_genes, clustering_method, range(self.config.methods[clustering_method]), self.config.metrics,
             fs_methods=self.fs_methods
         )
         self.clustering = pd.concat([self.clustering, part]).sort_index() if hasattr(self, 'clustering') else part
@@ -176,7 +178,8 @@ class ClusterRecorder(BasicExperimentRecorder):
 
     def record(self, dataset: str, n_genes: Union[int, str], metrics: dict, fs_method: str = None):
         for method, per_method_metrics in metrics.items():
-            self.extend_record_table(dataset, n_genes, method)
+            if fs_method is None or fs_method == self.fs_methods[0]:
+                self.extend_record_table(dataset, n_genes, method)
             for metric_run, value in per_method_metrics.items():
                 metric, run = metric_run.split('_')
                 if metric in self.config.metrics:

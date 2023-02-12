@@ -2,7 +2,7 @@ import time
 import traceback
 from typing import List
 
-from common_utils.utils import plot_2D, head
+from common_utils.utils import plot_2D
 from config import marker_cfg, assign_cfg, cluster_cfg, batch_cfg, time_cfg, method_cfg
 from data_loader.dataset import yield_train_test_data, load_data
 from experiments.metrics import marker_discovery_rate, correction_metrics, classification_metrics, clustering_metrics
@@ -60,22 +60,26 @@ def run_batch_correction(fs_methods: List[str] = method_cfg.unsupervised + metho
         recorder.sink()  # sink every dataset
 
 
-def run_cell_classification(fs_methods: List[str] = method_cfg.unsupervised + method_cfg.supervised, use_saved_genes: bool = True):
+def run_cell_classification(
+        fs_methods: List[str] = method_cfg.unsupervised + method_cfg.supervised,
+        use_saved_genes: bool = True,
+        all_genes: bool = True
+):
     recorder = init_recorder(fs_methods, assign_cfg)
     for dataset_name in assign_cfg.intra_datasets if assign_cfg.is_intra else assign_cfg.inter_datasets:
         adata = load_data(dataset_name)  # load the whole dataset
         recorder.extend_record_table(adata)  # add new part of table to the existing table, or create new table
         data_generator = yield_train_test_data(adata)  # create a data generator
         for i, (train_adata, test_adata) in enumerate(data_generator):  # fold / batch:  split the data
-            for assign_method in assign_cfg.methods:
-                head(assign_method, i + 1)
-                # baseline: all genes;
+            # baseline: all genes;
+            if all_genes:
                 classify_cells(train_adata, test_adata)
                 baseline_results = classification_metrics(test_adata)
                 recorder.record(test_adata.uns['data_name'], 'AllGenes', baseline_results,
                                 n_fold=i + 1 if assign_cfg.is_intra else None)
-                for n_genes in assign_cfg.n_genes:
-                    for fs_method in fs_methods:
+            for n_genes in assign_cfg.n_genes:
+                for fs_method in fs_methods:
+                    try:
                         # select genes on training set and do classification
                         selected_train_adata = select_genes(train_adata, fs_method, n_genes, use_saved=use_saved_genes, select_by_batch=False)
                         selected_test_adata = subset_adata(test_adata, selected_train_adata.var_names)
@@ -83,6 +87,9 @@ def run_cell_classification(fs_methods: List[str] = method_cfg.unsupervised + me
                         results = classification_metrics(selected_test_adata)
                         recorder.record(test_adata.uns['data_name'], n_genes, results, fs_method,
                                         n_fold=i + 1 if assign_cfg.is_intra else None)
+                        print(recorder.classification)
+                    except:
+                        traceback.print_exc()
         recorder.sink()
 
 

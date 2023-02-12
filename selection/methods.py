@@ -10,7 +10,7 @@ import pandas as pd
 import scanpy as sc
 import triku as tk
 from lightgbm import LGBMClassifier
-from pagest import pagest
+from scGeneClust import scGeneClust
 from rpy2.robjects import r, globalenv
 from rpy2.robjects.packages import importr
 from scGeneFit.functions import *
@@ -62,8 +62,8 @@ def single_select_by_batch(adata: ad.AnnData,
         selected_genes_df = cellranger_compute_importance(adata)
     elif method == 'var':
         selected_genes_df = variance_compute_importance(adata)
-    elif method == 'cv2':
-        selected_genes_df = cv2_compute_importance(adata)
+    elif method == 'cv':
+        selected_genes_df = cv_compute_importance(adata)
     elif method == 'mi':
         selected_genes_df = mutual_info_compute_importance(adata)
     elif method == 'scGeneFit':
@@ -87,16 +87,18 @@ def single_select_by_batch(adata: ad.AnnData,
     elif method == 'triku':
         selected_genes_df = triku_compute_importance(adata.copy())  # .copy() prevent modification on adata object
     elif method == 'sct':
-        selected_genes_df = sctransform_compute_importance(adata.copy())
+        selected_genes_df = sctransform_compute_importance(adata)
     elif method == 'giniclust3':
         selected_genes_df = giniclust3_compute_importance(adata)
+    elif method == 'sc3':
+        selected_genes_df = sc3_compute_importance(adata)
     elif method == 'pagest1w':
-        selected_genes = pagest(adata.raw.to_adata(), n_selected_genes, 'one-way', random_stat=base_cfg.random_seed, verbose=2,
-                                gene_clustering='gmm', n_gene_clusters=200, gene_cluster_score='spearman')
+        selected_genes = scGeneClust(adata.raw.to_adata(), 'fast', random_stat=base_cfg.random_seed, verbosity=2)
         selected_genes_df = pd.DataFrame({'Gene': selected_genes})
     elif method == 'pagest2w':
-        selected_genes = pagest(adata.raw.to_adata(), n_selected_genes, 'two-way', n_cell_clusters=adata.obs.celltype.unique().shape[0], random_stat=base_cfg.random_seed, verbose=2,
-                                gene_clustering='leiden', gene_distance='spearman', gene_cluster_score='spearman', stat='kw')
+        selected_genes = scGeneClust(adata.raw.to_adata(), 'hc',
+                                     n_cell_clusters=adata.obs.celltype.unique().shape[0],
+                                     random_stat=base_cfg.random_seed, verbosity=2)
         selected_genes_df = pd.DataFrame({'Gene': selected_genes})
     else:
         raise NotImplementedError(f"No implementation of {method}!")
@@ -176,12 +178,14 @@ def select_genes_by_batch(adata: ad.AnnData,
     return final_result
 
 
-def select_genes(adata: ad.AnnData,
-                 method: str,
-                 n_selected_genes: int,
-                 inplace: bool = False,
-                 use_saved: bool = True,
-                 select_by_batch=True) -> Optional[ad.AnnData]:
+def select_genes(
+        adata: ad.AnnData,
+        method: str,
+        n_selected_genes: int,
+        inplace: bool = False,
+        use_saved: bool = True,
+        select_by_batch=True
+) -> Optional[ad.AnnData]:
     print(f'{method} starts to select {n_selected_genes} genes...')
     if 'batch' in adata.obs and select_by_batch:
         # calculate feature importances
@@ -281,10 +285,10 @@ def variance_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.var(adata.layers['log-normalized'], axis=0)})
 
 
-def cv2_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
+def cv_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     std, mean = np.std(adata.layers['log-normalized'], axis=0), np.mean(adata.layers['log-normalized'], axis=0)
     print('Number of genes whose mean are less than 1e-4: {}'.format(np.sum(np.squeeze(mean) < 1e-4)))
-    return pd.DataFrame({'Gene': adata.var_names, 'Importance': np.square(std / mean)})
+    return pd.DataFrame({'Gene': adata.var_names, 'Importance': std / mean})
 
 
 def mutual_info_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
@@ -335,6 +339,15 @@ def giniclust3_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
     result['Importance'] = 1 - result['p.value']
     result.drop(columns=['p.value'], inplace=True)
     return result
+
+
+def sc3_compute_importance(adata: ad.AnnData) -> pd.DataFrame:
+    importance = np.zeros(shape=(adata.raw.shape[1],))  # the importances of filtered genes are set to zero
+    dropouts = np.sum(adata.raw.X == 0, axis=0) / adata.raw.shape[1] * 100
+    sc3_gene_filter = np.logical_and(10 < dropouts, dropouts < 90)
+    print(f"Filtering {adata.raw.shape[1] - sc3_gene_filter.sum()} rarely and ubiquitously expressed genes...")
+    importance[sc3_gene_filter] = adata.raw.X[:, sc3_gene_filter].mean(axis=0)  # expression levels
+    return pd.DataFrame({'Gene': adata.var_names, 'Importance': importance})
 
 
 # R methods
@@ -401,8 +414,9 @@ def scmap_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     sce <- logNormCounts(sce)
     rowData(sce)$feature_symbol <- rownames(sce)
     sce <- selectFeatures(sce, dim(sce)[1], suppress_plot = TRUE)
+    res <- na.omit(rowData(sce)['scmap_scores'])
     """)
-    result = r("na.omit(rowData(sce)['scmap_scores'])").reset_index()  # index  scmap_scores
+    result = r("res").reset_index()  # index  scmap_scores
     return result
 
 
@@ -432,10 +446,6 @@ def scran(adata: ad.AnnData) -> Optional[pd.DataFrame]:
 def sctransform_compute_importance(adata: ad.AnnData) -> Optional[pd.DataFrame]:
     importr('sctransform')
     globalenv['sce'] = anndata2ri.py2rpy(adata.raw.to_adata())
-    r("""
-    data <- as(assay(sce, 'X'), "sparseMatrix")
-    res <- vst(data, method = "glmGamPoi", vst.flavor = "v2", verbosity = 0)
-    """)
+    r("""res <- vst(as(assay(sce, 'X'), "sparseMatrix"), method = "glmGamPoi", verbosity = 0)""")
     result = r("res$gene_attr['residual_variance']").reset_index()
     return result
-
